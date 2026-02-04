@@ -5,6 +5,7 @@ PhiFlow NS2D data generator (JAX backend) — stable version
 - Uses explicit diffusion by default (more compatible across PhiFlow versions)
 - Uses smaller dt by default
 - Exports numpy arrays with stable dimension order
+- Adds optional JIT stepping and configurable frame stride
 """
 
 from __future__ import annotations
@@ -24,7 +25,7 @@ class NS2DConfig:
     steps: int = 200
 
     # Use a smaller dt by default to avoid CFL issues
-    dt: float = 0.1
+    dt: float = 0.02
 
     resolution: int = 128
     viscosity: float = 0.001
@@ -33,11 +34,19 @@ class NS2DConfig:
     with_density: bool = True
 
     # Optional internal substeps per saved frame
-    substeps: int = 1
+    substeps: int = 5
+    save_every: int = 1
+    jit_step: bool = True
 
     # For future forcing (disabled by default)
     forcing_strength: float = 0.0
     forcing_radius: float = 0.08
+
+    # Pressure solve tuning (main runtime hotspot)
+    pressure_solver: str = "CG"
+    pressure_rel_tol: float = 1e-5
+    pressure_abs_tol: float = 1e-5
+    pressure_max_iters: int = 200
 
 
 def _rng(seed: int) -> np.random.RandomState:
@@ -70,7 +79,16 @@ def init_state(cfg: NS2DConfig):
     return velocity, density
 
 
-def step_state(cfg: NS2DConfig, velocity, density):
+def _pressure_solve(cfg: NS2DConfig):
+    return Solve(
+        method=cfg.pressure_solver,
+        rel_tol=cfg.pressure_rel_tol,
+        abs_tol=cfg.pressure_abs_tol,
+        max_iterations=cfg.pressure_max_iters,
+    )
+
+
+def step_state(cfg: NS2DConfig, velocity, density, pressure_solve):
     # Advection
     velocity = advect.semi_lagrangian(velocity, velocity, cfg.dt)
     if density is not None:
@@ -84,7 +102,7 @@ def step_state(cfg: NS2DConfig, velocity, density):
             velocity = diffuse.explicit(velocity, cfg.viscosity, cfg.dt)
 
     # Projection to make velocity divergence-free
-    velocity, _ = fluid.make_incompressible(velocity)
+    velocity, _ = fluid.make_incompressible(velocity, solve=pressure_solve)
 
     return velocity, density
 
@@ -143,17 +161,36 @@ def state_to_numpy(velocity, density) -> np.ndarray:
 
 def generate_episode(cfg: NS2DConfig) -> Tuple[np.ndarray, Dict[str, Any]]:
     velocity, density = init_state(cfg)
+    pressure_solve = _pressure_solve(cfg)
+    save_every = max(1, int(cfg.save_every))
+
+    if cfg.with_density:
+        def _step_fn(v, d):
+            return step_state(cfg, v, d, pressure_solve)
+
+        step_fn = math.jit_compile(_step_fn) if cfg.jit_step else _step_fn
+    else:
+        def _step_v_only(v):
+            v, _ = step_state(cfg, v, None, pressure_solve)
+            return v
+
+        step_v_only = math.jit_compile(_step_v_only) if cfg.jit_step else _step_v_only
 
     frames = []
     for _t in range(cfg.steps):
-        frames.append(state_to_numpy(velocity, density))
+        if _t % save_every == 0:
+            frames.append(state_to_numpy(velocity, density))
 
         # advance substeps per saved frame
         for _ in range(max(1, cfg.substeps)):
-            velocity, density = step_state(cfg, velocity, density)
+            if cfg.with_density:
+                velocity, density = step_fn(velocity, density)
+            else:
+                velocity = step_v_only(velocity)
 
     fields = np.stack(frames, axis=0)
     meta = asdict(cfg)
+    meta["saved_frames"] = int(fields.shape[0])
     return fields, meta
 
 
