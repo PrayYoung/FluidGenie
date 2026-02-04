@@ -1,0 +1,270 @@
+"""
+Train Transformer dynamics in token space.
+
+We assume you already trained a VQ tokenizer (VQVAE) and saved params ckpt.
+This script:
+  - loads NPZ episodes
+  - samples windows of frames
+  - encodes frames -> token grids via VQ encoder+codebook (argmin)
+  - trains Transformer to predict next-frame tokens from context-frame tokens
+
+Run (example):
+  uv run python -m fluidgenie.training.train_dynamics \
+    --data data/ns2d \
+    --vq_ckpt runs/vq/latest.ckpt \
+    --out runs/dyn \
+    --steps 20000 \
+    --batch 4 \
+    --context 2 \
+    --codebook 512
+"""
+
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+from typing import Iterator, Tuple
+
+import numpy as np
+import jax
+import jax.numpy as jnp
+import optax
+from flax import linen as nn
+from flax.training import train_state
+from flax.serialization import from_bytes, to_bytes
+from tqdm import trange
+from einops import rearrange
+
+from fluidgenie.data.dataset_npz import NPZSequenceDataset
+from fluidgenie.models.vq_tokenizer import VQVAE, VQConfig
+from fluidgenie.models.transformer_dynamics import TransformerDynamics, DynConfig
+
+
+# -------------------------
+# Data loader
+# -------------------------
+
+def infinite_loader(ds: NPZSequenceDataset, batch_size: int) -> Iterator[Tuple[np.ndarray, np.ndarray]]:
+    """
+    Yields:
+      x_ctx: float32 [B, context, H, W, C]
+      x_tgt: float32 [B, 1,       H, W, C]   (next frame)
+    """
+    idx = np.arange(len(ds))
+    rng = np.random.default_rng(0)
+    while True:
+        rng.shuffle(idx)
+        for i in range(0, len(idx), batch_size):
+            batch_idx = idx[i : i + batch_size]
+            xs, ys = [], []
+            for j in batch_idx:
+                x, y = ds[j]  # x:[context,H,W,C], y:[pred,H,W,C]
+                xs.append(x)
+                ys.append(y[:1])  # force pred=1
+            yield np.stack(xs, axis=0), np.stack(ys, axis=0)
+
+
+# -------------------------
+# Tokenization helpers (JAX)
+# -------------------------
+
+@jax.jit
+def vq_encode_to_tokens(vq_params, vq_cfg: VQConfig, x: jnp.ndarray) -> jnp.ndarray:
+    """
+    Encode frames -> token grid using VQ-VAE encoder + argmin to codebook.
+
+    Args:
+      x: [B, H, W, C]
+    Returns:
+      tok: int32 [B, h, w]
+    """
+    # Build modules inline (must match training architecture)
+    enc = VQVAE(vq_cfg, in_channels=x.shape[-1])
+    # Run full model to get tok from VectorQuantizer (uses codebook + argmin)
+    # Note: VQVAE.__call__ returns (x_rec, tok, commit, codebook_loss)
+    _x_rec, tok, _commit, _cb = enc.apply({"params": vq_params}, x)
+    return tok.astype(jnp.int32)
+
+
+def flatten_token_sequence(tok_ctx: jnp.ndarray) -> jnp.ndarray:
+    """
+    tok_ctx: [B, context, h, w] -> [B, L] where L=context*h*w
+    """
+    return rearrange(tok_ctx, "b t h w -> b (t h w)")
+
+
+def flatten_token_grid(tok: jnp.ndarray) -> jnp.ndarray:
+    """
+    tok: [B, h, w] -> [B, h*w]
+    """
+    return rearrange(tok, "b h w -> b (h w)")
+
+
+# -------------------------
+# Model / training state
+# -------------------------
+
+class TrainState(train_state.TrainState):
+    pass
+
+
+def make_causal_mask(L: int) -> jnp.ndarray:
+    """
+    Standard causal mask for self-attention: [1, 1, L, L]
+    """
+    # Flax SelfAttention uses causal=True option instead of explicit mask; keep utility in case.
+    m = jnp.tril(jnp.ones((L, L), dtype=jnp.bool_))
+    return m[None, None, :, :]
+
+
+@jax.jit
+def train_step(state: TrainState, tok_in: jnp.ndarray, tok_tgt: jnp.ndarray) -> Tuple[TrainState, dict]:
+    """
+    Args:
+      tok_in:  int32 [B, L_in]  (context tokens flattened)
+      tok_tgt: int32 [B, L_out] (next-frame tokens flattened)
+    We train a model that outputs logits for each position in L_out, conditioned on tok_in.
+    Simplest approach:
+      feed [tok_in, tok_tgt_shifted] into one transformer and predict tok_tgt
+    """
+    B = tok_in.shape[0]
+    L_in = tok_in.shape[1]
+    L_out = tok_tgt.shape[1]
+
+    # teacher forcing: shift target right with BOS token 0 (assume token ids start at 0)
+    bos = jnp.zeros((B, 1), dtype=jnp.int32)
+    tok_tgt_in = jnp.concatenate([bos, tok_tgt[:, :-1]], axis=1)  # [B, L_out]
+
+    # concat into one sequence
+    seq = jnp.concatenate([tok_in, tok_tgt_in], axis=1)  # [B, L_in + L_out]
+    L = seq.shape[1]
+
+    def loss_fn(params):
+        logits = state.apply_fn({"params": params}, seq, train=True)  # [B, L, vocab]
+        # we only compute loss on the target portion positions corresponding to tok_tgt_in
+        logits_tgt = logits[:, L_in:, :]  # [B, L_out, vocab]
+        loss = optax.softmax_cross_entropy_with_integer_labels(logits_tgt, tok_tgt).mean()
+        return loss, {"loss": loss}
+
+    (loss, metrics), grads = jax.value_and_grad(loss_fn, has_aux=True)(state.params)
+    state = state.apply_gradients(grads=grads)
+    return state, metrics
+
+
+# -------------------------
+# Main
+# -------------------------
+
+def main():
+    ap = argparse.ArgumentParser()
+
+    ap.add_argument("--data", type=str, required=True)
+    ap.add_argument("--vq_ckpt", type=str, required=True)
+    ap.add_argument("--out", type=str, required=True)
+
+    ap.add_argument("--steps", type=int, default=20000)
+    ap.add_argument("--batch", type=int, default=4)
+    ap.add_argument("--context", type=int, default=2)
+    ap.add_argument("--lr", type=float, default=3e-4)
+    ap.add_argument("--seed", type=int, default=0)
+
+    # must match tokenizer training
+    ap.add_argument("--codebook", type=int, default=512)
+    ap.add_argument("--embed", type=int, default=64)
+    ap.add_argument("--hidden", type=int, default=128)
+
+    # dynamics model
+    ap.add_argument("--d_model", type=int, default=256)
+    ap.add_argument("--n_heads", type=int, default=8)
+    ap.add_argument("--n_layers", type=int, default=6)
+    ap.add_argument("--dropout", type=float, default=0.1)
+
+    args = ap.parse_args()
+
+    rng = jax.random.PRNGKey(args.seed)
+
+    # Dataset windows: context frames + 1 pred frame
+    ds = NPZSequenceDataset(args.data, context=args.context, pred=1)
+    loader = infinite_loader(ds, args.batch)
+
+    # Infer shapes (H,W,C)
+    x_ctx0, x_tgt0 = next(loader)
+    H, W, C = x_ctx0.shape[-3:]
+    x_ctx0 = jnp.array(x_ctx0)
+    x_tgt0 = jnp.array(x_tgt0)
+
+    # Load tokenizer params
+    vq_cfg = VQConfig(codebook_size=args.codebook, embed_dim=args.embed, hidden=args.hidden)
+    vq_model = VQVAE(vq_cfg, in_channels=C)
+    vq_init = vq_model.init(rng, jnp.zeros((1, H, W, C), dtype=jnp.float32))["params"]
+    vq_params = from_bytes(vq_init, Path(args.vq_ckpt).read_bytes())
+
+    # Encode once to get token grid resolution
+    tok_ctx0 = []
+    for t in range(args.context):
+        tok_ctx0.append(vq_encode_to_tokens(vq_params, vq_cfg, x_ctx0[:, t]))
+    tok_ctx0 = jnp.stack(tok_ctx0, axis=1)  # [B, context, h, w]
+    tok_tgt0 = vq_encode_to_tokens(vq_params, vq_cfg, x_tgt0[:, 0])  # [B, h, w]
+
+    h_tok, w_tok = tok_tgt0.shape[1], tok_tgt0.shape[2]
+    L_in = args.context * h_tok * w_tok
+    L_out = h_tok * w_tok
+    max_len = L_in + L_out
+
+    # Build dynamics model
+    dyn_cfg = DynConfig(
+        vocab_size=args.codebook,
+        d_model=args.d_model,
+        n_heads=args.n_heads,
+        n_layers=args.n_layers,
+        dropout=args.dropout,
+        max_len=max_len,
+    )
+    dyn_model = TransformerDynamics(dyn_cfg)
+
+    # Init dynamics params
+    seq0 = jnp.zeros((1, max_len), dtype=jnp.int32)
+    dyn_params = dyn_model.init(rng, seq0, train=True)["params"]
+
+    state = TrainState.create(
+        apply_fn=dyn_model.apply,
+        params=dyn_params,
+        tx=optax.adam(args.lr),
+    )
+
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+
+    # Train loop
+    for step in trange(args.steps):
+        x_ctx, x_tgt = next(loader)
+        x_ctx = jnp.array(x_ctx)
+        x_tgt = jnp.array(x_tgt)
+
+        # Tokenize context and target (teacher forcing)
+        tok_ctx_list = []
+        for t in range(args.context):
+            tok_ctx_list.append(vq_encode_to_tokens(vq_params, vq_cfg, x_ctx[:, t]))
+        tok_ctx = jnp.stack(tok_ctx_list, axis=1)  # [B, context, h, w]
+        tok_tgt = vq_encode_to_tokens(vq_params, vq_cfg, x_tgt[:, 0])  # [B, h, w]
+
+        tok_in = flatten_token_sequence(tok_ctx)     # [B, L_in]
+        tok_out = flatten_token_grid(tok_tgt)        # [B, L_out]
+
+        state, metrics = train_step(state, tok_in, tok_out)
+
+        if step % 100 == 0:
+            print(f"[{step}] loss={float(metrics['loss']):.4f}")
+
+        if step % 1000 == 0 and step > 0:
+            (out / f"step_{step:06d}.ckpt").write_bytes(to_bytes(state.params))
+            (out / "latest.ckpt").write_bytes(to_bytes(state.params))
+
+    (out / "final.ckpt").write_bytes(to_bytes(state.params))
+    (out / "latest.ckpt").write_bytes(to_bytes(state.params))
+    print("Saved dynamics to", out)
+    print(f"Token grid: {h_tok}x{w_tok}, L_in={L_in}, L_out={L_out}, max_len={max_len}")
+
+
+if __name__ == "__main__":
+    main()
