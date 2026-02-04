@@ -30,7 +30,7 @@ class TransformerDynamics(nn.Module):
             # self-attention block
             h = nn.LayerNorm()(x)
             h = nn.SelfAttention(num_heads=self.cfg.n_heads, qkv_features=self.cfg.d_model,
-                                 dropout_rate=self.cfg.dropout, deterministic=not train)(h)
+                                 dropout_rate=self.cfg.dropout, deterministic=not train, causal=True)(h)
             x = x + h
 
             # MLP block
