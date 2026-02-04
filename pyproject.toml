@@ -12,11 +12,18 @@ dependencies = [
     "flax>=0.10.7",
     "imageio>=2.37.2",
     "jax>=0.6.2",
-    "jaxlib>=0.6.2",
     "matplotlib>=3.10.8",
     "numpy>=2.2.6",
     "optax>=0.2.6",
     "phiflow>=3.4.0",
     "pyyaml>=6.0.3",
     "tqdm>=4.67.2",
+]
+
+[project.optional-dependencies]
+cuda12 = [
+    "jax[cuda12]>=0.6.2; platform_system == 'Linux'",
+]
+cuda13 = [
+    "jax[cuda13]>=0.9.0; platform_system == 'Linux' and python_version >= '3.11'",
 ]
