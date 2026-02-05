@@ -41,10 +41,13 @@ def main():
     ap.add_argument("--implicit", type=int, default=0, help="1=use diffuse.implicit, 0=explicit")
     ap.add_argument("--density", type=int, default=1, help="1=with density channel, 0=velocity-only")
     ap.add_argument("--substeps", type=int, default=1, help="internal substeps per saved frame")
+    ap.add_argument("--save-every", type=int, default=1, help="save one frame every N steps")
+    ap.add_argument("--noise", type=float, default=0.10, help="initial velocity noise scale")
 
     # Future forcing (already present in config)
     ap.add_argument("--forcing_strength", type=float, default=0.0)
     ap.add_argument("--forcing_radius", type=float, default=0.08)
+    ap.add_argument("--density_radius", type=float, default=0.08)
 
     args = ap.parse_args()
 
@@ -60,8 +63,11 @@ def main():
         use_implicit_diffusion=bool(args.implicit),
         with_density=bool(args.density),
         substeps=args.substeps,
+        save_every=args.save_every,
+        init_velocity_noise=args.noise,
         forcing_strength=args.forcing_strength,
         forcing_radius=args.forcing_radius,
+        density_radius=args.density_radius,
     )
 
     generate_dataset(

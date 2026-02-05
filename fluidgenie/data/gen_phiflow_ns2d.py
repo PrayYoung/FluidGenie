@@ -10,6 +10,7 @@ PhiFlow NS2D data generator (JAX backend) — stable version
 
 from __future__ import annotations
 
+import argparse
 from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Optional, Tuple, Dict, Any
@@ -30,6 +31,7 @@ class NS2DConfig:
     resolution: int = 128
     viscosity: float = 0.001
     use_implicit_diffusion: bool = False
+    init_velocity_noise: float = 0.10
 
     with_density: bool = True
 
@@ -38,14 +40,15 @@ class NS2DConfig:
     save_every: int = 1
     jit_step: bool = True
 
-    # For future forcing (disabled by default)
+    # External forcing and initialization
     forcing_strength: float = 0.0
     forcing_radius: float = 0.08
+    density_radius: float = 0.08
 
     # Pressure solve tuning (main runtime hotspot)
     pressure_solver: str = "CG"
-    pressure_rel_tol: float = 1e-5
-    pressure_abs_tol: float = 1e-5
+    pressure_rel_tol: float = 1e-4
+    pressure_abs_tol: float = 1e-4
     pressure_max_iters: int = 200
 
 
@@ -55,15 +58,17 @@ def _rng(seed: int) -> np.random.RandomState:
 
 def init_state(cfg: NS2DConfig):
     bounds = Box(x=(0, 1), y=(0, 1))
+    math.seed(cfg.seed)
 
     velocity = StaggeredGrid(
-        0.0,
+        Noise(scale=cfg.init_velocity_noise),
         bounds=bounds,
         x=cfg.resolution,
         y=cfg.resolution,
     )
 
     density = None
+    forcing = None
     if cfg.with_density:
         density = CenteredGrid(
             0.0,
@@ -73,10 +78,21 @@ def init_state(cfg: NS2DConfig):
         )
         r = _rng(cfg.seed)
         cx, cy = r.uniform(0.3, 0.7, size=2)
-        blob = Sphere(x=float(cx), y=float(cy), radius=float(cfg.forcing_radius))
+        blob = Sphere(x=float(cx), y=float(cy), radius=float(cfg.density_radius))
         density = density + 1.0 * resample(blob, density)
+    else:
+        r = _rng(cfg.seed)
+        cx, cy = r.uniform(0.3, 0.7, size=2)
 
-    return velocity, density
+    if cfg.forcing_strength > 0:
+        forcing = CenteredGrid(
+            Noise(scale=cfg.forcing_strength, smoothness=max(1.0, cfg.forcing_radius * 30.0)),
+            bounds=bounds,
+            x=cfg.resolution,
+            y=cfg.resolution,
+        )
+
+    return velocity, density, forcing
 
 
 def _pressure_solve(cfg: NS2DConfig):
@@ -88,11 +104,15 @@ def _pressure_solve(cfg: NS2DConfig):
     )
 
 
-def step_state(cfg: NS2DConfig, velocity, density, pressure_solve):
+def step_state(cfg: NS2DConfig, velocity, density, forcing, pressure_solve):
     # Advection
     velocity = advect.semi_lagrangian(velocity, velocity, cfg.dt)
     if density is not None:
         density = advect.semi_lagrangian(density, velocity, cfg.dt)
+
+    # External body force (vortex-like), if enabled
+    if forcing is not None:
+        velocity = velocity + resample(forcing, velocity) * cfg.dt
 
     # Diffusion: explicit is more compatible across PhiFlow versions / backends
     if cfg.viscosity > 0:
@@ -160,18 +180,19 @@ def state_to_numpy(velocity, density) -> np.ndarray:
 
 
 def generate_episode(cfg: NS2DConfig) -> Tuple[np.ndarray, Dict[str, Any]]:
-    velocity, density = init_state(cfg)
+    velocity, density, forcing = init_state(cfg)
     pressure_solve = _pressure_solve(cfg)
     save_every = max(1, int(cfg.save_every))
+    velocity, _ = fluid.make_incompressible(velocity, solve=pressure_solve)
 
     if cfg.with_density:
         def _step_fn(v, d):
-            return step_state(cfg, v, d, pressure_solve)
+            return step_state(cfg, v, d, forcing, pressure_solve)
 
         step_fn = math.jit_compile(_step_fn) if cfg.jit_step else _step_fn
     else:
         def _step_v_only(v):
-            v, _ = step_state(cfg, v, None, pressure_solve)
+            v, _ = step_state(cfg, v, None, forcing, pressure_solve)
             return v
 
         step_v_only = math.jit_compile(_step_v_only) if cfg.jit_step else _step_v_only
@@ -208,9 +229,3 @@ def generate_dataset(out_dir: str, episodes: int = 10, cfg: Optional[NS2DConfig]
         ep_cfg.seed = cfg.seed + i
         fields, meta = generate_episode(ep_cfg)
         save_episode_npz(out_dir / f"{name_prefix}_{i:06d}.npz", fields, meta)
-
-
-if __name__ == "__main__":
-    cfg = NS2DConfig(seed=0, steps=50, resolution=64, dt=0.1, with_density=True, substeps=1)
-    generate_dataset("data/ns2d_test", episodes=2, cfg=cfg)
-    print("Wrote data/ns2d_test/*.npz")
