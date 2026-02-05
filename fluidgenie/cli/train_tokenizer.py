@@ -29,6 +29,8 @@ def main():
     ap.add_argument("--embed", type=int, default=64)
     ap.add_argument("--hidden", type=int, default=128)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--log_every", type=int, default=50)
+    ap.add_argument("--tb", type=int, default=1)
     args = ap.parse_args()
 
     cmd = [
@@ -42,6 +44,8 @@ def main():
         "--embed", str(args.embed),
         "--hidden", str(args.hidden),
         "--seed", str(args.seed),
+        "--log_every", str(args.log_every),
+        "--tb", str(args.tb),
     ]
     print("Running:", " ".join(cmd))
     raise SystemExit(subprocess.call(cmd))

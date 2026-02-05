@@ -26,6 +26,7 @@ from flax.serialization import to_bytes
 from tqdm import trange
 
 from fluidgenie.data.dataset_npz import NPZSequenceDataset
+from fluidgenie.training.logging_utils import TrainingLogger
 from fluidgenie.models.vq_tokenizer import VQVAE, VQConfig
 
 
@@ -89,6 +90,8 @@ def main():
     ap.add_argument("--embed", type=int, default=64)
     ap.add_argument("--hidden", type=int, default=128)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--log_every", type=int, default=50)
+    ap.add_argument("--tb", type=int, default=1, help="1=write TensorBoard logs, 0=disable")
     args = ap.parse_args()
 
     rng = jax.random.PRNGKey(args.seed)
@@ -121,6 +124,7 @@ def main():
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
+    logger = TrainingLogger(out, run_name="tokenizer", log_every=args.log_every, use_tb=bool(args.tb))
 
     # Training loop
     for step in trange(args.steps):
@@ -128,9 +132,8 @@ def main():
         batch = jnp.array(batch)
         state, metrics = train_step(state, batch)
 
-        if step % 100 == 0:
-            m = {k: float(v) for k, v in metrics.items()}
-            print(f"[{step}] {m}")
+        if logger.should_log(step):
+            logger.log(step, metrics, prefix="train")
 
         if step % 1000 == 0 and step > 0:
             ckpt = out / f"step_{step:06d}.ckpt"
@@ -150,6 +153,7 @@ def main():
 
     # Save final
     (out / "final.ckpt").write_bytes(to_bytes(state.params))
+    logger.close()
     print("Saved tokenizer to", out)
 
 

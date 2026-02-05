@@ -36,6 +36,7 @@ from tqdm import trange
 from einops import rearrange
 
 from fluidgenie.data.dataset_npz import NPZSequenceDataset
+from fluidgenie.training.logging_utils import TrainingLogger
 from fluidgenie.models.vq_tokenizer import VQVAE, VQConfig
 from fluidgenie.models.transformer_dynamics import TransformerDynamics, DynConfig
 
@@ -178,6 +179,8 @@ def main():
     ap.add_argument("--n_heads", type=int, default=8)
     ap.add_argument("--n_layers", type=int, default=6)
     ap.add_argument("--dropout", type=float, default=0.1)
+    ap.add_argument("--log_every", type=int, default=50)
+    ap.add_argument("--tb", type=int, default=1, help="1=write TensorBoard logs, 0=disable")
 
     args = ap.parse_args()
 
@@ -234,6 +237,7 @@ def main():
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
+    logger = TrainingLogger(out, run_name="dynamics", log_every=args.log_every, use_tb=bool(args.tb))
 
     # Train loop
     for step in trange(args.steps):
@@ -253,8 +257,8 @@ def main():
 
         state, metrics = train_step(state, tok_in, tok_out)
 
-        if step % 100 == 0:
-            print(f"[{step}] loss={float(metrics['loss']):.4f}")
+        if logger.should_log(step):
+            logger.log(step, metrics, prefix="train")
 
         if step % 1000 == 0 and step > 0:
             (out / f"step_{step:06d}.ckpt").write_bytes(to_bytes(state.params))
@@ -262,6 +266,7 @@ def main():
 
     (out / "final.ckpt").write_bytes(to_bytes(state.params))
     (out / "latest.ckpt").write_bytes(to_bytes(state.params))
+    logger.close()
     print("Saved dynamics to", out)
     print(f"Token grid: {h_tok}x{w_tok}, L_in={L_in}, L_out={L_out}, max_len={max_len}")
 

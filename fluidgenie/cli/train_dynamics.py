@@ -36,6 +36,8 @@ def main():
     ap.add_argument("--n_heads", type=int, default=8)
     ap.add_argument("--n_layers", type=int, default=6)
     ap.add_argument("--dropout", type=float, default=0.1)
+    ap.add_argument("--log_every", type=int, default=50)
+    ap.add_argument("--tb", type=int, default=1)
 
     args = ap.parse_args()
 
@@ -56,6 +58,8 @@ def main():
         "--n_heads", str(args.n_heads),
         "--n_layers", str(args.n_layers),
         "--dropout", str(args.dropout),
+        "--log_every", str(args.log_every),
+        "--tb", str(args.tb),
     ]
     print("Running:", " ".join(cmd))
     raise SystemExit(subprocess.call(cmd))
