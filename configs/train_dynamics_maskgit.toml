@@ -1,0 +1,28 @@
+[dynamics]
+model = "maskgit"
+data = "data/ns2d"
+vq_ckpt = "runs/vq/latest.ckpt"
+out = "runs/dyn_maskgit"
+steps = 20000
+batch = 4
+context = 2
+lr = 0.0003
+seed = 0
+
+codebook = 512
+embed = 64
+hidden = 128
+
+d_model = 256
+n_heads = 8
+n_layers = 6
+dropout = 0.1
+
+log_every = 50
+tb = 1
+stats = "data/ns2d_stats.npz"
+
+mask_ratio_min = 0.1
+mask_ratio_max = 0.9
+mask_schedule = "cosine"
+mask_steps = 8

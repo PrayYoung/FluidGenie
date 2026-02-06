@@ -1,0 +1,16 @@
+[gen_data]
+out = "data/ns2d"
+episodes = 200
+steps = 120
+res = 96
+dt = 0.02
+viscosity = 0.001
+density = 1
+substeps = 1
+save_every = 1
+seed = 0
+noise = 0.05
+
+forcing_strength = 0.005
+forcing_radius = 0.10
+density_radius = 0.08
