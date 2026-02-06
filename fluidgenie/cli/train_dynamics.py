@@ -18,9 +18,9 @@ import sys
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--data", type=str, required=True)
-    ap.add_argument("--vq_ckpt", type=str, required=True)
-    ap.add_argument("--out", type=str, required=True)
+    ap.add_argument("--data", type=str, default="")
+    ap.add_argument("--vq_ckpt", type=str, default="")
+    ap.add_argument("--out", type=str, default="")
 
     ap.add_argument("--steps", type=int, default=20000)
     ap.add_argument("--batch", type=int, default=4)
@@ -39,6 +39,7 @@ def main():
     ap.add_argument("--log_every", type=int, default=50)
     ap.add_argument("--tb", type=int, default=1)
     ap.add_argument("--stats", type=str, default="")
+    ap.add_argument("--config", type=str, default="")
 
     args = ap.parse_args()
 
@@ -62,6 +63,7 @@ def main():
         "--log_every", str(args.log_every),
         "--tb", str(args.tb),
         "--stats", str(args.stats),
+        "--config", str(args.config),
     ]
     print("Running:", " ".join(cmd))
     raise SystemExit(subprocess.call(cmd))

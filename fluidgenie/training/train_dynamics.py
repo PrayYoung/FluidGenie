@@ -36,6 +36,7 @@ from tqdm import trange
 from einops import rearrange
 
 from fluidgenie.data.dataset_npz import NPZSequenceDataset
+from fluidgenie.training.config_utils import load_toml_config, apply_config_defaults
 from fluidgenie.training.logging_utils import TrainingLogger
 from fluidgenie.models.vq_tokenizer import VQVAE, VQConfig
 from fluidgenie.models.transformer_dynamics import TransformerDynamics, DynConfig
@@ -136,10 +137,11 @@ def train_step(state: TrainState, tok_in: jnp.ndarray, tok_tgt: jnp.ndarray, dro
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--config", type=str, default="", help="TOML config file")
 
-    ap.add_argument("--data", type=str, required=True)
-    ap.add_argument("--vq_ckpt", type=str, required=True)
-    ap.add_argument("--out", type=str, required=True)
+    ap.add_argument("--data", type=str, default=None)
+    ap.add_argument("--vq_ckpt", type=str, default=None)
+    ap.add_argument("--out", type=str, default=None)
 
     ap.add_argument("--steps", type=int, default=20000)
     ap.add_argument("--batch", type=int, default=4)
@@ -162,6 +164,31 @@ def main():
     ap.add_argument("--stats", type=str, default="", help="Path to stats .npz for normalization")
 
     args = ap.parse_args()
+
+    defaults = {
+        "data": None,
+        "vq_ckpt": None,
+        "out": None,
+        "steps": 20000,
+        "batch": 4,
+        "context": 2,
+        "lr": 3e-4,
+        "seed": 0,
+        "codebook": 512,
+        "embed": 64,
+        "hidden": 128,
+        "d_model": 256,
+        "n_heads": 8,
+        "n_layers": 6,
+        "dropout": 0.1,
+        "log_every": 50,
+        "tb": 1,
+        "stats": "",
+    }
+    cfg = load_toml_config(args.config, section="dynamics") if args.config else {}
+    apply_config_defaults(args, defaults, cfg)
+    if args.data is None or args.vq_ckpt is None or args.out is None:
+        raise ValueError("--data, --vq_ckpt and --out are required (or set in config).")
 
     rng = jax.random.PRNGKey(args.seed)
 

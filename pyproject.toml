@@ -17,8 +17,8 @@ dependencies = [
     "optax>=0.2.6",
     "phiflow>=3.4.0",
     "pillow>=12.1.0",
-    "pyyaml>=6.0.3",
     "tensorboardx>=2.6.4",
+    "tomli>=2.0.1",
     "tqdm>=4.67.2",
 ]
 

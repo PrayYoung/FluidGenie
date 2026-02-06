@@ -26,6 +26,7 @@ from flax.serialization import to_bytes
 from tqdm import trange
 
 from fluidgenie.data.dataset_npz import NPZSequenceDataset
+from fluidgenie.training.config_utils import load_toml_config, apply_config_defaults
 from fluidgenie.training.logging_utils import TrainingLogger
 from fluidgenie.models.vq_tokenizer import VQVAE, VQConfig
 
@@ -74,8 +75,38 @@ def compute_vorticity(img):
 # Training step
 # -------------------------
 
-@jax.jit
-def train_step(state: TrainState, batch: jnp.ndarray):
+def make_train_step(alpha: float, beta: float, gamma: float):
+    @jax.jit
+    def _train_step(state: TrainState, batch: jnp.ndarray):
+        def loss_fn(params):
+            x_rec, _, commit_loss, codebook_loss = state.apply_fn({"params": params}, batch)
+            # 1. reconstruction loss
+            recon_loss = jnp.mean((x_rec - batch) ** 2)
+            # 2. physics/gradient loss
+            dy_true, dx_true = spatial_grads(batch)
+            dy_rec, dx_rec = spatial_grads(x_rec)
+            grad_loss = jnp.mean((dx_rec - dx_true) ** 2 + (dy_rec - dy_true) ** 2)
+            w_true = compute_vorticity(batch)
+            w_rec = compute_vorticity(x_rec)
+            vorticity_loss = jnp.mean((w_rec - w_true) ** 2)
+
+            total_loss = recon_loss + alpha * grad_loss + gamma * vorticity_loss + \
+                         codebook_loss + beta * commit_loss
+
+            return total_loss, {
+                "loss": total_loss,
+                "recon": recon_loss,
+                "commit": commit_loss,
+                "codebook": codebook_loss,
+                "grad": grad_loss,
+                "vorticity": vorticity_loss,
+            }
+
+        (loss, metrics), grads = jax.value_and_grad(loss_fn, has_aux=True)(state.params)
+        state = state.apply_gradients(grads=grads)
+        return state, metrics
+
+    return _train_step
     def loss_fn(params):
         x_rec, _, commit_loss, codebook_loss = state.apply_fn({"params": params}, batch)
         # 1. reconstruction loss
@@ -88,10 +119,6 @@ def train_step(state: TrainState, batch: jnp.ndarray):
         w_rec = compute_vorticity(x_rec)
         vorticity_loss = jnp.mean((w_rec - w_true) ** 2)
         # 3. weighted total loss
-        alpha = 1.0
-        beta = 0.25
-        gamma = 0.5
-
         total_loss = recon_loss + alpha * grad_loss + gamma * vorticity_loss + \
                      codebook_loss + beta * commit_loss
 
@@ -115,8 +142,9 @@ def train_step(state: TrainState, batch: jnp.ndarray):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--data", type=str, required=True)
-    ap.add_argument("--out", type=str, required=True)
+    ap.add_argument("--config", type=str, default="", help="TOML config file")
+    ap.add_argument("--data", type=str, default=None)
+    ap.add_argument("--out", type=str, default=None)
     ap.add_argument("--batch", type=int, default=8)
     ap.add_argument("--steps", type=int, default=5000)
     ap.add_argument("--lr", type=float, default=3e-4)
@@ -127,7 +155,32 @@ def main():
     ap.add_argument("--log_every", type=int, default=50)
     ap.add_argument("--tb", type=int, default=1, help="1=write TensorBoard logs, 0=disable")
     ap.add_argument("--stats", type=str, default="", help="Path to stats .npz for normalization")
+    ap.add_argument("--loss_alpha", type=float, default=1.0)
+    ap.add_argument("--loss_beta", type=float, default=0.25)
+    ap.add_argument("--loss_gamma", type=float, default=0.5)
     args = ap.parse_args()
+
+    defaults = {
+        "data": None,
+        "out": None,
+        "batch": 8,
+        "steps": 5000,
+        "lr": 3e-4,
+        "codebook": 1024,
+        "embed": 64,
+        "hidden": 128,
+        "seed": 0,
+        "log_every": 50,
+        "tb": 1,
+        "stats": "",
+        "loss_alpha": 1.0,
+        "loss_beta": 0.25,
+        "loss_gamma": 0.5,
+    }
+    cfg = load_toml_config(args.config, section="tokenizer") if args.config else {}
+    apply_config_defaults(args, defaults, cfg)
+    if args.data is None or args.out is None:
+        raise ValueError("--data and --out are required (or set in config).")
 
     rng = jax.random.PRNGKey(args.seed)
 
@@ -168,6 +221,8 @@ def main():
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     logger = TrainingLogger(out, run_name="tokenizer", log_every=args.log_every, use_tb=bool(args.tb))
+
+    train_step = make_train_step(args.loss_alpha, args.loss_beta, args.loss_gamma)
 
     # Training loop
     for step in trange(args.steps):
