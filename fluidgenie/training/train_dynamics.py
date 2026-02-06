@@ -119,7 +119,7 @@ def make_causal_mask(L: int) -> jnp.ndarray:
 
 
 @jax.jit
-def train_step(state: TrainState, tok_in: jnp.ndarray, tok_tgt: jnp.ndarray) -> Tuple[TrainState, dict]:
+def train_step(state: TrainState, tok_in: jnp.ndarray, tok_tgt: jnp.ndarray, dropout_key: jnp.ndarray) -> Tuple[TrainState, dict]:
     """
     Args:
       tok_in:  int32 [B, L_in]  (context tokens flattened)
@@ -141,7 +141,8 @@ def train_step(state: TrainState, tok_in: jnp.ndarray, tok_tgt: jnp.ndarray) -> 
     L = seq.shape[1]
 
     def loss_fn(params):
-        logits = state.apply_fn({"params": params}, seq, train=True)  # [B, L, vocab]
+        logits = state.apply_fn({"params": params}, seq, train=True,
+                                rngs={"dropout": dropout_key})  # [B, L, vocab]
         # we only compute loss on the target portion positions corresponding to tok_tgt_in
         logits_tgt = logits[:, L_in:, :]  # [B, L_out, vocab]
         loss = optax.softmax_cross_entropy_with_integer_labels(logits_tgt, tok_tgt).mean()
@@ -238,6 +239,7 @@ def main():
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     logger = TrainingLogger(out, run_name="dynamics", log_every=args.log_every, use_tb=bool(args.tb))
+    dropout_rng = jax.random.PRNGKey(args.seed + 1)
 
     # Train loop
     for step in trange(args.steps):
@@ -255,7 +257,8 @@ def main():
         tok_in = flatten_token_sequence(tok_ctx)     # [B, L_in]
         tok_out = flatten_token_grid(tok_tgt)        # [B, L_out]
 
-        state, metrics = train_step(state, tok_in, tok_out)
+        dropout_rng, step_key = jax.random.split(dropout_rng)
+        state, metrics = train_step(state, tok_in, tok_out, step_key)
 
         if logger.should_log(step):
             logger.log(step, metrics, prefix="train")
