@@ -20,6 +20,7 @@ def save_tokenizer_recon(
     embed_dim: int,
     hidden: int,
     stats_path: Optional[str] = None,
+    save_gif: bool = False,
 ) -> None:
     out = ensure_dir(Path(out_dir))
 
@@ -88,3 +89,64 @@ def save_tokenizer_recon(
     )
 
     print("Saved:", out_png)
+
+    if not save_gif:
+        return
+
+    try:
+        import imageio.v2 as imageio
+    except Exception:  # pragma: no cover
+        import imageio  # type: ignore
+
+    frames = []
+    for t in range(fields.shape[0]):
+        x_t = fields[t]
+        x_in = x_t
+        if stats_path:
+            x_in = (x_t - mean) / (std + 1e-6)
+        x_in = jnp.array(x_in[None, ...], dtype=jnp.float32)
+        x_rec, tok, _, _ = vq_model.apply({"params": vq_params}, x_in)
+        x_rec = np.array(x_rec[0])
+        if stats_path:
+            x_rec = x_rec * (std + 1e-6) + mean
+        tok = np.array(tok[0])
+
+        fig = plt.figure(figsize=(12, 4))
+        if C >= 2:
+            w_gt = vorticity_from_uv(x_t[..., :2])
+            w_rec = vorticity_from_uv(x_rec[..., :2])
+            ax1 = fig.add_subplot(1, 3, 1)
+            ax1.imshow(w_gt)
+            ax1.set_title(f"GT vorticity (t={t})")
+            ax1.axis("off")
+
+            ax2 = fig.add_subplot(1, 3, 2)
+            ax2.imshow(w_rec)
+            ax2.set_title("Recon vorticity")
+            ax2.axis("off")
+        else:
+            ax1 = fig.add_subplot(1, 3, 1)
+            ax1.imshow(x_t[..., 0])
+            ax1.set_title(f"GT (t={t})")
+            ax1.axis("off")
+
+            ax2 = fig.add_subplot(1, 3, 2)
+            ax2.imshow(x_rec[..., 0])
+            ax2.set_title("Recon")
+            ax2.axis("off")
+
+        ax3 = fig.add_subplot(1, 3, 3)
+        ax3.imshow(tok)
+        ax3.set_title("Token map")
+        ax3.axis("off")
+
+        fig.tight_layout()
+        fig.canvas.draw()
+        img = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+        img = img.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+        plt.close(fig)
+        frames.append(img)
+
+    out_gif = out / "vq_recon_all.gif"
+    imageio.mimsave(out_gif, frames, duration=0.12)
+    print("Saved:", out_gif)

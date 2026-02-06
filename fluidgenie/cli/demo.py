@@ -56,6 +56,7 @@ def main():
 
     # tokenizer demo
     ap.add_argument("--frame", type=int, default=0)
+    ap.add_argument("--save_gif", type=int, default=0, help="1=save all frames as GIF")
 
     # rollout config
     ap.add_argument("--dyn_ckpt", type=str, default="")
@@ -83,6 +84,7 @@ def main():
             embed_dim=args.embed,
             hidden=args.hidden,
             stats_path=args.stats if args.stats else None,
+            save_gif=bool(args.save_gif),
         )
         return
 
