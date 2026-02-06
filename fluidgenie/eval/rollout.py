@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Optional
 
 import numpy as np
+import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 
@@ -29,7 +30,7 @@ def sample_argmax(logits: jnp.ndarray) -> jnp.ndarray:
     return jnp.argmax(logits, axis=-1).astype(jnp.int32)
 
 
-def rollout_tokens(dyn_model, dyn_params, tok_in: jnp.ndarray, L_out: int, vocab: int) -> jnp.ndarray:
+def rollout_tokens_autoregressive(dyn_model, dyn_params, tok_in: jnp.ndarray, L_out: int, vocab: int) -> jnp.ndarray:
     B, L_in = tok_in.shape
     tok_out = jnp.zeros((B, 0), dtype=jnp.int32)
 
@@ -51,6 +52,42 @@ def rollout_tokens(dyn_model, dyn_params, tok_in: jnp.ndarray, L_out: int, vocab
     return tok_out
 
 
+def maskgit_rollout_tokens(
+    dyn_model,
+    dyn_params,
+    tok_in: jnp.ndarray,
+    L_out: int,
+    vocab: int,
+    mask_token_id: int,
+    mask_steps: int,
+) -> jnp.ndarray:
+    B, L_in = tok_in.shape
+    tok_out = jnp.full((B, L_out), mask_token_id, dtype=jnp.int32)
+
+    for step in range(mask_steps):
+        seq = jnp.concatenate([tok_in, tok_out], axis=1)
+        logits = dyn_model.apply({"params": dyn_params}, seq, train=False)
+        logits_tgt = logits[:, L_in:, :]
+        probs = jax.nn.softmax(logits_tgt, axis=-1)
+        pred = jnp.argmax(probs, axis=-1).astype(jnp.int32)
+        conf = jnp.max(probs, axis=-1)
+
+        # mask schedule (cosine)
+        t = (step + 1) / mask_steps
+        ratio = 0.5 * (1.0 + jnp.cos(jnp.pi * t))
+        k = jnp.maximum(1, jnp.floor(ratio * L_out).astype(jnp.int32))
+
+        def update_one(conf_row, pred_row, tok_row):
+            idx = jnp.argsort(conf_row)[::-1]
+            keep = idx[:k]
+            tok_row = tok_row.at[keep].set(pred_row[keep])
+            return tok_row
+
+        tok_out = jax.vmap(update_one)(conf, pred, tok_out)
+
+    return tok_out
+
+
 def run_rollout(
     npz_path: str,
     vq_ckpt: str,
@@ -66,6 +103,8 @@ def run_rollout(
     n_heads: int,
     n_layers: int,
     dropout: float,
+    model_type: str = "transformer",
+    mask_steps: int = 8,
     stats_path: Optional[str] = None,
 ) -> None:
     out = ensure_dir(Path(out_dir))
@@ -98,8 +137,9 @@ def run_rollout(
     L_out = h_tok * w_tok
     max_len = L_in + L_out
 
+    vocab_size = codebook_size + (1 if model_type == "maskgit" else 0)
     dyn_cfg = DynConfig(
-        vocab_size=codebook_size,
+        vocab_size=vocab_size,
         d_model=d_model,
         n_heads=n_heads,
         n_layers=n_layers,
@@ -131,7 +171,18 @@ def run_rollout(
     tok_ctx = ctx_tok
     for k in range(horizon):
         tok_in = flatten_ctx(tok_ctx).astype(jnp.int32)
-        tok_next_flat = rollout_tokens(dyn_model, dyn_params, tok_in, L_out=L_out, vocab=codebook_size)
+        if model_type == "maskgit":
+            tok_next_flat = maskgit_rollout_tokens(
+                dyn_model,
+                dyn_params,
+                tok_in,
+                L_out=L_out,
+                vocab=vocab_size,
+                mask_token_id=codebook_size,
+                mask_steps=mask_steps,
+            )
+        else:
+            tok_next_flat = rollout_tokens_autoregressive(dyn_model, dyn_params, tok_in, L_out=L_out, vocab=codebook_size)
         tok_next = unflatten_grid(tok_next_flat)
 
         x_hat = vq_decode_tokens(vq_cfg, dec_params, codebook, tok_next, out_channels=C)

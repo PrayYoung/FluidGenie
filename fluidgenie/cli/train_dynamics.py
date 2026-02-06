@@ -36,6 +36,11 @@ def main():
     ap.add_argument("--n_heads", type=int, default=8)
     ap.add_argument("--n_layers", type=int, default=6)
     ap.add_argument("--dropout", type=float, default=0.1)
+    ap.add_argument("--model", type=str, default="transformer")
+    ap.add_argument("--mask_ratio_min", type=float, default=0.1)
+    ap.add_argument("--mask_ratio_max", type=float, default=0.9)
+    ap.add_argument("--mask_schedule", type=str, default="cosine")
+    ap.add_argument("--mask_steps", type=int, default=8)
     ap.add_argument("--log_every", type=int, default=50)
     ap.add_argument("--tb", type=int, default=1)
     ap.add_argument("--stats", type=str, default="")
@@ -60,6 +65,11 @@ def main():
         "--n_heads", str(args.n_heads),
         "--n_layers", str(args.n_layers),
         "--dropout", str(args.dropout),
+        "--model", str(args.model),
+        "--mask_ratio_min", str(args.mask_ratio_min),
+        "--mask_ratio_max", str(args.mask_ratio_max),
+        "--mask_schedule", str(args.mask_schedule),
+        "--mask_steps", str(args.mask_steps),
         "--log_every", str(args.log_every),
         "--tb", str(args.tb),
         "--stats", str(args.stats),

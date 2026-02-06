@@ -1,4 +1,5 @@
 [dynamics]
+model = "transformer" # transformer | maskgit
 data = "data/ns2d"
 vq_ckpt = "runs/vq/latest.ckpt"
 out = "runs/dyn"
@@ -20,3 +21,9 @@ dropout = 0.1
 log_every = 50
 tb = 1
 stats = "data/ns2d_stats.npz"
+
+# MaskGIT options (only used when model = "maskgit")
+mask_ratio_min = 0.1
+mask_ratio_max = 0.9
+mask_schedule = "cosine" # cosine | uniform
+mask_steps = 8

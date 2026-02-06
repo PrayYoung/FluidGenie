@@ -97,38 +97,64 @@ def make_causal_mask(L: int) -> jnp.ndarray:
     return m[None, None, :, :]
 
 
-@jax.jit
-def train_step(state: TrainState, tok_in: jnp.ndarray, tok_tgt: jnp.ndarray, dropout_key: jnp.ndarray) -> Tuple[TrainState, dict]:
-    """
-    Args:
-      tok_in:  int32 [B, L_in]  (context tokens flattened)
-      tok_tgt: int32 [B, L_out] (next-frame tokens flattened)
-    We train a model that outputs logits for each position in L_out, conditioned on tok_in.
-    Simplest approach:
-      feed [tok_in, tok_tgt_shifted] into one transformer and predict tok_tgt
-    """
-    B = tok_in.shape[0]
-    L_in = tok_in.shape[1]
+def make_train_step(model_type: str, mask_token_id: int, mask_ratio_min: float, mask_ratio_max: float, mask_schedule: str):
+    @jax.jit
+    def _train_step(state: TrainState, tok_in: jnp.ndarray, tok_tgt: jnp.ndarray, dropout_key: jnp.ndarray, mask_key: jnp.ndarray) -> Tuple[TrainState, dict]:
+        """
+        Args:
+          tok_in:  int32 [B, L_in]  (context tokens flattened)
+          tok_tgt: int32 [B, L_out] (next-frame tokens flattened)
+        We train a model that outputs logits for each position in L_out, conditioned on tok_in.
+        Simplest approach:
+          feed [tok_in, tok_tgt_shifted] into one transformer and predict tok_tgt
+        """
+        B = tok_in.shape[0]
+        L_in = tok_in.shape[1]
+        L_out = tok_tgt.shape[1]
 
-    # teacher forcing: shift target right with BOS token 0 (assume token ids start at 0)
-    bos = jnp.zeros((B, 1), dtype=jnp.int32)
-    tok_tgt_in = jnp.concatenate([bos, tok_tgt[:, :-1]], axis=1)  # [B, L_out]
+        # teacher forcing: shift target right with BOS token 0 (assume token ids start at 0)
+        bos = jnp.zeros((B, 1), dtype=jnp.int32)
+        tok_tgt_in = jnp.concatenate([bos, tok_tgt[:, :-1]], axis=1)  # [B, L_out]
 
-    # concat into one sequence
-    seq = jnp.concatenate([tok_in, tok_tgt_in], axis=1)  # [B, L_in + L_out]
-    L = seq.shape[1]
+        if model_type == "maskgit":
+            # sample masking ratio
+            t = jax.random.uniform(mask_key, shape=())
+            if mask_schedule == "cosine":
+                ratio = mask_ratio_min + (mask_ratio_max - mask_ratio_min) * 0.5 * (1.0 + jnp.cos(jnp.pi * t))
+            else:
+                ratio = mask_ratio_min + (mask_ratio_max - mask_ratio_min) * t
+            ratio = jnp.clip(ratio, 0.0, 1.0)
 
-    def loss_fn(params):
-        logits = state.apply_fn({"params": params}, seq, train=True,
-                                rngs={"dropout": dropout_key})  # [B, L, vocab]
-        # we only compute loss on the target portion positions corresponding to tok_tgt_in
-        logits_tgt = logits[:, L_in:, :]  # [B, L_out, vocab]
-        loss = optax.softmax_cross_entropy_with_integer_labels(logits_tgt, tok_tgt).mean()
-        return loss, {"loss": loss}
+            # random mask per position
+            scores = jax.random.uniform(mask_key, shape=(B, L_out))
+            mask = scores < ratio
+            # ensure at least one masked token per sample
+            mask_any = jnp.any(mask, axis=1, keepdims=True)
+            default_mask = jnp.concatenate([jnp.ones((B, 1), dtype=bool), jnp.zeros((B, L_out - 1), dtype=bool)], axis=1)
+            mask = jnp.where(mask_any, mask, default_mask)
 
-    (loss, metrics), grads = jax.value_and_grad(loss_fn, has_aux=True)(state.params)
-    state = state.apply_gradients(grads=grads)
-    return state, metrics
+            tok_tgt_masked = jnp.where(mask, mask_token_id, tok_tgt)
+            seq = jnp.concatenate([tok_in, tok_tgt_masked], axis=1)  # [B, L_in + L_out]
+        else:
+            seq = jnp.concatenate([tok_in, tok_tgt_in], axis=1)  # [B, L_in + L_out]
+
+        def loss_fn(params):
+            logits = state.apply_fn({"params": params}, seq, train=True,
+                                    rngs={"dropout": dropout_key})  # [B, L, vocab]
+            logits_tgt = logits[:, L_in:, :]  # [B, L_out, vocab]
+            ce = optax.softmax_cross_entropy_with_integer_labels(logits_tgt, tok_tgt)  # [B, L_out]
+            if model_type == "maskgit":
+                mask_f = mask.astype(ce.dtype)
+                loss = (ce * mask_f).sum() / (mask_f.sum() + 1e-6)
+            else:
+                loss = ce.mean()
+            return loss, {"loss": loss}
+
+        (loss, metrics), grads = jax.value_and_grad(loss_fn, has_aux=True)(state.params)
+        state = state.apply_gradients(grads=grads)
+        return state, metrics
+
+    return _train_step
 
 
 # -------------------------
@@ -155,6 +181,7 @@ def main():
     ap.add_argument("--hidden", type=int, default=128)
 
     # dynamics model
+    ap.add_argument("--model", type=str, default="transformer", choices=["transformer", "maskgit"])
     ap.add_argument("--d_model", type=int, default=256)
     ap.add_argument("--n_heads", type=int, default=8)
     ap.add_argument("--n_layers", type=int, default=6)
@@ -162,6 +189,10 @@ def main():
     ap.add_argument("--log_every", type=int, default=50)
     ap.add_argument("--tb", type=int, default=1, help="1=write TensorBoard logs, 0=disable")
     ap.add_argument("--stats", type=str, default="", help="Path to stats .npz for normalization")
+    ap.add_argument("--mask_ratio_min", type=float, default=0.1)
+    ap.add_argument("--mask_ratio_max", type=float, default=0.9)
+    ap.add_argument("--mask_schedule", type=str, default="cosine", choices=["cosine", "uniform"])
+    ap.add_argument("--mask_steps", type=int, default=8)
 
     args = ap.parse_args()
 
@@ -177,6 +208,7 @@ def main():
         "codebook": 512,
         "embed": 64,
         "hidden": 128,
+        "model": "transformer",
         "d_model": 256,
         "n_heads": 8,
         "n_layers": 6,
@@ -184,6 +216,10 @@ def main():
         "log_every": 50,
         "tb": 1,
         "stats": "",
+        "mask_ratio_min": 0.1,
+        "mask_ratio_max": 0.9,
+        "mask_schedule": "cosine",
+        "mask_steps": 8,
     }
     cfg = load_toml_config(args.config, section="dynamics") if args.config else {}
     apply_config_defaults(args, defaults, cfg)
@@ -229,8 +265,9 @@ def main():
     max_len = L_in + L_out
 
     # Build dynamics model
+    vocab_size = args.codebook + (1 if args.model == "maskgit" else 0)
     dyn_cfg = DynConfig(
-        vocab_size=args.codebook,
+        vocab_size=vocab_size,
         d_model=args.d_model,
         n_heads=args.n_heads,
         n_layers=args.n_layers,
@@ -254,6 +291,15 @@ def main():
     logger = TrainingLogger(out, run_name="dynamics", log_every=args.log_every, use_tb=bool(args.tb))
     dropout_rng = jax.random.PRNGKey(args.seed + 1)
 
+    train_step = make_train_step(
+        args.model,
+        mask_token_id=args.codebook,
+        mask_ratio_min=args.mask_ratio_min,
+        mask_ratio_max=args.mask_ratio_max,
+        mask_schedule=args.mask_schedule,
+    )
+    mask_rng = jax.random.PRNGKey(args.seed + 2)
+
     # Train loop
     for step in trange(args.steps):
         x_ctx, x_tgt = next(loader)
@@ -271,7 +317,8 @@ def main():
         tok_out = flatten_token_grid(tok_tgt)        # [B, L_out]
 
         dropout_rng, step_key = jax.random.split(dropout_rng)
-        state, metrics = train_step(state, tok_in, tok_out, step_key)
+        mask_rng, mask_key = jax.random.split(mask_rng)
+        state, metrics = train_step(state, tok_in, tok_out, step_key, mask_key)
 
         if logger.should_log(step):
             logger.log(step, metrics, prefix="train")

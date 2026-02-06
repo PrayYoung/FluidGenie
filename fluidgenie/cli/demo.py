@@ -64,10 +64,12 @@ def main():
     ap.add_argument("--context", type=int, default=2)
 
     # dynamics model config (must match training)
+    ap.add_argument("--model", type=str, default="transformer", choices=["transformer", "maskgit"])
     ap.add_argument("--d_model", type=int, default=256)
     ap.add_argument("--n_heads", type=int, default=8)
     ap.add_argument("--n_layers", type=int, default=6)
     ap.add_argument("--dropout", type=float, default=0.1)
+    ap.add_argument("--mask_steps", type=int, default=8)
 
     args = ap.parse_args()
 
@@ -103,6 +105,8 @@ def main():
         n_heads=args.n_heads,
         n_layers=args.n_layers,
         dropout=args.dropout,
+        model_type=args.model,
+        mask_steps=args.mask_steps,
         stats_path=args.stats if args.stats else None,
     )
 
