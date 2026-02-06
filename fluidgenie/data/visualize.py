@@ -8,7 +8,7 @@ import numpy as np
 from matplotlib.animation import FuncAnimation
 
 
-def visualize_npz(path: Path, interval: int = 60) -> None:
+def visualize_npz(path: Path, interval: int = 60, save_path: Path | None = None) -> None:
     data = np.load(path, allow_pickle=True)
     fields = data["fields"]  # [T,H,W,C]
 
@@ -42,7 +42,14 @@ def visualize_npz(path: Path, interval: int = 60) -> None:
     anim = FuncAnimation(fig, update, frames=fields.shape[0], interval=interval, blit=False)
     plt.suptitle(path.name)
     plt.tight_layout()
-    plt.show()
+    if save_path is not None:
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        if save_path.suffix.lower() == ".gif":
+            anim.save(save_path, writer="pillow", fps=max(1, int(1000 / interval)))
+        else:
+            anim.save(save_path, fps=max(1, int(1000 / interval)))
+    else:
+        plt.show()
     return anim
 
 
@@ -50,13 +57,15 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Visualize generated NS2D episode(s).")
     parser.add_argument("files", nargs="+", help="One or more .npz episode file paths.")
     parser.add_argument("--interval", type=int, default=60, help="Animation frame interval (ms).")
+    parser.add_argument("--save", type=str, default="", help="Output path (.gif or .mp4).")
     args = parser.parse_args()
 
+    save_path = Path(args.save) if args.save else None
     for file_name in args.files:
         path = Path(file_name)
         if not path.exists():
             raise FileNotFoundError(f"File not found: {path}")
-        visualize_npz(path, interval=args.interval)
+        visualize_npz(path, interval=args.interval, save_path=save_path)
 
 
 if __name__ == "__main__":
