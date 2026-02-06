@@ -65,28 +65,6 @@ def infinite_loader(ds: NPZSequenceDataset, batch_size: int) -> Iterator[Tuple[n
             yield np.stack(xs, axis=0), np.stack(ys, axis=0)
 
 
-# -------------------------
-# Tokenization helpers (JAX)
-# -------------------------
-
-@jax.jit
-def vq_encode_to_tokens(vq_params, vq_cfg: VQConfig, x: jnp.ndarray) -> jnp.ndarray:
-    """
-    Encode frames -> token grid using VQ-VAE encoder + argmin to codebook.
-
-    Args:
-      x: [B, H, W, C]
-    Returns:
-      tok: int32 [B, h, w]
-    """
-    # Build modules inline (must match training architecture)
-    enc = VQVAE(vq_cfg, in_channels=x.shape[-1])
-    # Run full model to get tok from VectorQuantizer (uses codebook + argmin)
-    # Note: VQVAE.__call__ returns (x_rec, tok, commit, codebook_loss)
-    _x_rec, tok, _commit, _cb = enc.apply({"params": vq_params}, x)
-    return tok.astype(jnp.int32)
-
-
 def flatten_token_sequence(tok_ctx: jnp.ndarray) -> jnp.ndarray:
     """
     tok_ctx: [B, context, h, w] -> [B, L] where L=context*h*w
@@ -130,7 +108,6 @@ def train_step(state: TrainState, tok_in: jnp.ndarray, tok_tgt: jnp.ndarray, dro
     """
     B = tok_in.shape[0]
     L_in = tok_in.shape[1]
-    L_out = tok_tgt.shape[1]
 
     # teacher forcing: shift target right with BOS token 0 (assume token ids start at 0)
     bos = jnp.zeros((B, 1), dtype=jnp.int32)
@@ -203,12 +180,19 @@ def main():
     vq_init = vq_model.init(rng, jnp.zeros((1, H, W, C), dtype=jnp.float32))["params"]
     vq_params = from_bytes(vq_init, Path(args.vq_ckpt).read_bytes())
 
+    # JIT encoder with model closed over (avoid passing Python objects into JIT)
+    def _vq_encode_to_tokens(vq_params, x: jnp.ndarray) -> jnp.ndarray:
+        _x_rec, tok, _commit, _cb = vq_model.apply({"params": vq_params}, x)
+        return tok.astype(jnp.int32)
+
+    vq_encode_to_tokens = jax.jit(_vq_encode_to_tokens)
+
     # Encode once to get token grid resolution
     tok_ctx0 = []
     for t in range(args.context):
-        tok_ctx0.append(vq_encode_to_tokens(vq_params, vq_cfg, x_ctx0[:, t]))
+        tok_ctx0.append(vq_encode_to_tokens(vq_params, x_ctx0[:, t]))
     tok_ctx0 = jnp.stack(tok_ctx0, axis=1)  # [B, context, h, w]
-    tok_tgt0 = vq_encode_to_tokens(vq_params, vq_cfg, x_tgt0[:, 0])  # [B, h, w]
+    tok_tgt0 = vq_encode_to_tokens(vq_params, x_tgt0[:, 0])  # [B, h, w]
 
     h_tok, w_tok = tok_tgt0.shape[1], tok_tgt0.shape[2]
     L_in = args.context * h_tok * w_tok
@@ -250,9 +234,9 @@ def main():
         # Tokenize context and target (teacher forcing)
         tok_ctx_list = []
         for t in range(args.context):
-            tok_ctx_list.append(vq_encode_to_tokens(vq_params, vq_cfg, x_ctx[:, t]))
+            tok_ctx_list.append(vq_encode_to_tokens(vq_params, x_ctx[:, t]))
         tok_ctx = jnp.stack(tok_ctx_list, axis=1)  # [B, context, h, w]
-        tok_tgt = vq_encode_to_tokens(vq_params, vq_cfg, x_tgt[:, 0])  # [B, h, w]
+        tok_tgt = vq_encode_to_tokens(vq_params, x_tgt[:, 0])  # [B, h, w]
 
         tok_in = flatten_token_sequence(tok_ctx)     # [B, L_in]
         tok_out = flatten_token_grid(tok_tgt)        # [B, L_out]

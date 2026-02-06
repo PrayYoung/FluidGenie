@@ -118,13 +118,15 @@ def get_codebook_and_decoder_params(vq_params: dict) -> Tuple[jnp.ndarray, dict]
 # Tokenization / detokenization
 # ----------------------------
 
-@jax.jit
-def vq_encode_tokens(vq_model: VQVAE, vq_params: dict, x: jnp.ndarray) -> jnp.ndarray:
-    """
-    x: [B,H,W,C] -> tok: [B,h,w] int32
-    """
-    _x_rec, tok, _commit, _cb = vq_model.apply({"params": vq_params}, x)
-    return tok.astype(jnp.int32)
+def make_vq_encode_tokens(vq_model: VQVAE):
+    @jax.jit
+    def _encode(vq_params: dict, x: jnp.ndarray) -> jnp.ndarray:
+        """
+        x: [B,H,W,C] -> tok: [B,h,w] int32
+        """
+        _x_rec, tok, _commit, _cb = vq_model.apply({"params": vq_params}, x)
+        return tok.astype(jnp.int32)
+    return _encode
 
 
 @jax.jit
@@ -154,6 +156,7 @@ def demo_tokenizer(npz_path: str, vq_ckpt: str, out_dir: str, frame: int,
 
     vq_cfg = VQConfig(codebook_size=codebook_size, embed_dim=embed_dim, hidden=hidden)
     vq_model, vq_params = load_vq_params(vq_cfg, in_channels=C, H=H, W=W, ckpt_path=vq_ckpt)
+    vq_encode_tokens = make_vq_encode_tokens(vq_model)
 
     x_in = jnp.array(x[None, ...], dtype=jnp.float32)
     x_rec, tok, commit, cb = vq_model.apply({"params": vq_params}, x_in)
@@ -263,9 +266,11 @@ def demo_rollout(npz_path: str, vq_ckpt: str, dyn_ckpt: str, out_dir: str,
     vq_cfg = VQConfig(codebook_size=codebook_size, embed_dim=embed_dim, hidden=hidden)
     vq_model, vq_params = load_vq_params(vq_cfg, in_channels=C, H=H, W=W, ckpt_path=vq_ckpt)
 
+    vq_encode_tokens = make_vq_encode_tokens(vq_model)
+
     # Determine token grid size by encoding one frame
     x0 = jnp.array(fields[start][None, ...], dtype=jnp.float32)
-    tok0 = vq_encode_tokens(vq_model, vq_params, x0)  # [1,h,w]
+    tok0 = vq_encode_tokens(vq_params, x0)  # [1,h,w]
     h_tok, w_tok = int(tok0.shape[1]), int(tok0.shape[2])
     L_in = context * h_tok * w_tok
     L_out = h_tok * w_tok
@@ -288,7 +293,7 @@ def demo_rollout(npz_path: str, vq_ckpt: str, dyn_ckpt: str, out_dir: str,
     ctx_tok_list = []
     for t in range(context):
         xt = jnp.array(ctx_frames[t][None, ...], dtype=jnp.float32)
-        ctx_tok_list.append(vq_encode_tokens(vq_model, vq_params, xt)[0])  # [h,w]
+        ctx_tok_list.append(vq_encode_tokens(vq_params, xt)[0])  # [h,w]
     ctx_tok = jnp.stack(ctx_tok_list, axis=0)[None, ...]  # [1,context,h,w]
 
     def flatten_ctx(tok_ctx: jnp.ndarray) -> jnp.ndarray:
