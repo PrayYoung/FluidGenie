@@ -126,12 +126,21 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--log_every", type=int, default=50)
     ap.add_argument("--tb", type=int, default=1, help="1=write TensorBoard logs, 0=disable")
+    ap.add_argument("--stats", type=str, default="", help="Path to stats .npz for normalization")
     args = ap.parse_args()
 
     rng = jax.random.PRNGKey(args.seed)
 
     # Dataset
-    ds = NPZSequenceDataset(args.data, context=2, pred=1)
+    stats_path = args.stats if args.stats else None
+    ds = NPZSequenceDataset(args.data, context=2, pred=1, stats_path=stats_path)
+    if stats_path:
+        stats = np.load(stats_path)
+        mean = stats["mean"].reshape(1, 1, 1, -1).astype(np.float32)
+        std = stats["std"].reshape(1, 1, 1, -1).astype(np.float32)
+    else:
+        mean = None
+        std = None
     loader = infinite_loader(ds, args.batch)
 
     # Infer input channels
@@ -179,6 +188,9 @@ def main():
             x_rec, _, _, _ = model.apply({"params": state.params}, batch, mutable=False)
             x_rec_np = np.array(x_rec[0])  # first sample
             x_gt_np = np.array(batch[0])
+            if mean is not None:
+                x_rec_np = x_rec_np * (std[0, 0] + 1e-6) + mean[0, 0]
+                x_gt_np = x_gt_np * (std[0, 0] + 1e-6) + mean[0, 0]
 
             snap = out / "snaps"
             snap.mkdir(exist_ok=True)

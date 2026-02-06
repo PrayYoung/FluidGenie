@@ -159,13 +159,15 @@ def main():
     ap.add_argument("--dropout", type=float, default=0.1)
     ap.add_argument("--log_every", type=int, default=50)
     ap.add_argument("--tb", type=int, default=1, help="1=write TensorBoard logs, 0=disable")
+    ap.add_argument("--stats", type=str, default="", help="Path to stats .npz for normalization")
 
     args = ap.parse_args()
 
     rng = jax.random.PRNGKey(args.seed)
 
     # Dataset windows: context frames + 1 pred frame
-    ds = NPZSequenceDataset(args.data, context=args.context, pred=1)
+    stats_path = args.stats if args.stats else None
+    ds = NPZSequenceDataset(args.data, context=args.context, pred=1, stats_path=stats_path)
     loader = infinite_loader(ds, args.batch)
 
     # Infer shapes (H,W,C)

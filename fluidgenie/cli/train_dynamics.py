@@ -38,6 +38,7 @@ def main():
     ap.add_argument("--dropout", type=float, default=0.1)
     ap.add_argument("--log_every", type=int, default=50)
     ap.add_argument("--tb", type=int, default=1)
+    ap.add_argument("--stats", type=str, default="")
 
     args = ap.parse_args()
 
@@ -60,6 +61,7 @@ def main():
         "--dropout", str(args.dropout),
         "--log_every", str(args.log_every),
         "--tb", str(args.tb),
+        "--stats", str(args.stats),
     ]
     print("Running:", " ".join(cmd))
     raise SystemExit(subprocess.call(cmd))

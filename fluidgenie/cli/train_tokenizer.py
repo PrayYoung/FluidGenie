@@ -31,6 +31,7 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--log_every", type=int, default=50)
     ap.add_argument("--tb", type=int, default=1)
+    ap.add_argument("--stats", type=str, default="")
     args = ap.parse_args()
 
     cmd = [
@@ -46,6 +47,7 @@ def main():
         "--seed", str(args.seed),
         "--log_every", str(args.log_every),
         "--tb", str(args.tb),
+        "--stats", str(args.stats),
     ]
     print("Running:", " ".join(cmd))
     raise SystemExit(subprocess.call(cmd))
