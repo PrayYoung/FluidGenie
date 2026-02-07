@@ -33,6 +33,7 @@ from __future__ import annotations
 import argparse
 from fluidgenie.eval.viz import save_tokenizer_recon
 from fluidgenie.eval.rollout import run_rollout
+from fluidgenie.training.config_utils import load_toml_config
 
 
 # ----------------------------
@@ -45,6 +46,7 @@ def main():
     ap.add_argument("--npz", type=str, required=True)
     ap.add_argument("--out", type=str, required=True)
     ap.add_argument("--stats", type=str, default="", help="Stats .npz for normalization (mean/std)")
+    ap.add_argument("--tokenizer_config", type=str, default="", help="Tokenizer TOML config (for codebook/embed/hidden/stats)")
 
     # tokenizer ckpt
     ap.add_argument("--vq_ckpt", type=str, required=True)
@@ -73,6 +75,17 @@ def main():
     ap.add_argument("--mask_steps", type=int, default=8)
 
     args = ap.parse_args()
+
+    if args.tokenizer_config:
+        cfg = load_toml_config(args.tokenizer_config, section="tokenizer")
+        if "codebook" in cfg:
+            args.codebook = cfg["codebook"]
+        if "embed" in cfg:
+            args.embed = cfg["embed"]
+        if "hidden" in cfg:
+            args.hidden = cfg["hidden"]
+        if not args.stats and "stats" in cfg:
+            args.stats = cfg["stats"]
 
     if args.mode == "tokenizer":
         save_tokenizer_recon(

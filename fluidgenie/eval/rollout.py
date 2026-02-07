@@ -226,8 +226,8 @@ def run_rollout(
 
         fig.tight_layout()
         fig.canvas.draw()
-        img = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-        img = img.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+        buf = np.asarray(fig.canvas.buffer_rgba())
+        img = np.array(buf)[..., :3]
         plt.close(fig)
         frames.append(img)
 
