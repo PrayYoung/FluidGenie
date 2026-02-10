@@ -141,6 +141,7 @@ def run_rollout(
     model_type: str = "transformer",
     use_kv_cache: bool = True,
     mask_steps: int = 8,
+    view: str = "density",
     stats_path: Optional[str] = None,
 ) -> None:
     out = ensure_dir(Path(out_dir))
@@ -238,29 +239,41 @@ def run_rollout(
         gt_k = gt[k]
         pr_k = preds[k]
 
-        if C >= 2:
+        if view == "density" and C >= 3:
+            w_gt = gt_k[..., 2]
+            w_pr = pr_k[..., 2]
+            err = np.abs(w_pr - w_gt)
+            title = "Density"
+        elif view == "speed" and C >= 2:
+            w_gt = np.sqrt(gt_k[..., 0] ** 2 + gt_k[..., 1] ** 2)
+            w_pr = np.sqrt(pr_k[..., 0] ** 2 + pr_k[..., 1] ** 2)
+            err = np.abs(w_pr - w_gt)
+            title = "Speed"
+        elif view == "vorticity" and C >= 2:
             w_gt = vorticity_from_uv(gt_k[..., :2])
             w_pr = vorticity_from_uv(pr_k[..., :2])
             err = np.abs(w_pr - w_gt)
+            title = "Vorticity"
         else:
             w_gt = gt_k[..., 0]
             w_pr = pr_k[..., 0]
             err = np.abs(w_pr - w_gt)
+            title = "Channel0"
 
         fig = plt.figure(figsize=(9, 3))
         ax1 = fig.add_subplot(1, 3, 1)
         ax1.imshow(w_gt)
-        ax1.set_title(f"GT (t={k})")
+        ax1.set_title(f"GT {title} (t={k})")
         ax1.axis("off")
 
         ax2 = fig.add_subplot(1, 3, 2)
         ax2.imshow(w_pr)
-        ax2.set_title("Rollout")
+        ax2.set_title(f"Rollout {title}")
         ax2.axis("off")
 
         ax3 = fig.add_subplot(1, 3, 3)
         ax3.imshow(err)
-        ax3.set_title("Abs error")
+        ax3.set_title(f"Abs error {title}")
         ax3.axis("off")
 
         fig.tight_layout()

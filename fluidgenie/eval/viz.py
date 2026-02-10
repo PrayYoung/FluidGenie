@@ -21,6 +21,7 @@ def save_tokenizer_recon(
     hidden: int,
     stats_path: Optional[str] = None,
     save_gif: bool = False,
+    view: str = "density",
 ) -> None:
     out = ensure_dir(Path(out_dir))
 
@@ -49,29 +50,32 @@ def save_tokenizer_recon(
 
     fig = plt.figure(figsize=(12, 4))
 
-    if C >= 2:
-        w_gt = vorticity_from_uv(x[..., :2])
-        w_rec = vorticity_from_uv(x_rec[..., :2])
-
-        ax1 = fig.add_subplot(1, 3, 1)
-        ax1.imshow(w_gt)
-        ax1.set_title("GT vorticity")
-        ax1.axis("off")
-
-        ax2 = fig.add_subplot(1, 3, 2)
-        ax2.imshow(w_rec)
-        ax2.set_title("Recon vorticity")
-        ax2.axis("off")
+    if view == "density" and C >= 3:
+        gt_vis = x[..., 2]
+        rec_vis = x_rec[..., 2]
+        title = "Density"
+    elif view == "speed" and C >= 2:
+        gt_vis = np.sqrt(x[..., 0] ** 2 + x[..., 1] ** 2)
+        rec_vis = np.sqrt(x_rec[..., 0] ** 2 + x_rec[..., 1] ** 2)
+        title = "Speed"
+    elif view == "vorticity" and C >= 2:
+        gt_vis = vorticity_from_uv(x[..., :2])
+        rec_vis = vorticity_from_uv(x_rec[..., :2])
+        title = "Vorticity"
     else:
-        ax1 = fig.add_subplot(1, 3, 1)
-        ax1.imshow(x[..., 0])
-        ax1.set_title("GT")
-        ax1.axis("off")
+        gt_vis = x[..., 0]
+        rec_vis = x_rec[..., 0]
+        title = "Channel0"
 
-        ax2 = fig.add_subplot(1, 3, 2)
-        ax2.imshow(x_rec[..., 0])
-        ax2.set_title("Recon")
-        ax2.axis("off")
+    ax1 = fig.add_subplot(1, 3, 1)
+    ax1.imshow(gt_vis)
+    ax1.set_title(f"GT {title}")
+    ax1.axis("off")
+
+    ax2 = fig.add_subplot(1, 3, 2)
+    ax2.imshow(rec_vis)
+    ax2.set_title(f"Recon {title}")
+    ax2.axis("off")
 
     ax3 = fig.add_subplot(1, 3, 3)
     ax3.imshow(tok)
@@ -112,28 +116,32 @@ def save_tokenizer_recon(
         tok = np.array(tok[0])
 
         fig = plt.figure(figsize=(12, 4))
-        if C >= 2:
-            w_gt = vorticity_from_uv(x_t[..., :2])
-            w_rec = vorticity_from_uv(x_rec[..., :2])
-            ax1 = fig.add_subplot(1, 3, 1)
-            ax1.imshow(w_gt)
-            ax1.set_title(f"GT vorticity (t={t})")
-            ax1.axis("off")
-
-            ax2 = fig.add_subplot(1, 3, 2)
-            ax2.imshow(w_rec)
-            ax2.set_title("Recon vorticity")
-            ax2.axis("off")
+        if view == "density" and C >= 3:
+            gt_vis = x_t[..., 2]
+            rec_vis = x_rec[..., 2]
+            title = "Density"
+        elif view == "speed" and C >= 2:
+            gt_vis = np.sqrt(x_t[..., 0] ** 2 + x_t[..., 1] ** 2)
+            rec_vis = np.sqrt(x_rec[..., 0] ** 2 + x_rec[..., 1] ** 2)
+            title = "Speed"
+        elif view == "vorticity" and C >= 2:
+            gt_vis = vorticity_from_uv(x_t[..., :2])
+            rec_vis = vorticity_from_uv(x_rec[..., :2])
+            title = "Vorticity"
         else:
-            ax1 = fig.add_subplot(1, 3, 1)
-            ax1.imshow(x_t[..., 0])
-            ax1.set_title(f"GT (t={t})")
-            ax1.axis("off")
+            gt_vis = x_t[..., 0]
+            rec_vis = x_rec[..., 0]
+            title = "Channel0"
 
-            ax2 = fig.add_subplot(1, 3, 2)
-            ax2.imshow(x_rec[..., 0])
-            ax2.set_title("Recon")
-            ax2.axis("off")
+        ax1 = fig.add_subplot(1, 3, 1)
+        ax1.imshow(gt_vis)
+        ax1.set_title(f"GT {title} (t={t})")
+        ax1.axis("off")
+
+        ax2 = fig.add_subplot(1, 3, 2)
+        ax2.imshow(rec_vis)
+        ax2.set_title(f"Recon {title}")
+        ax2.axis("off")
 
         ax3 = fig.add_subplot(1, 3, 3)
         ax3.imshow(tok)

@@ -1,17 +1,17 @@
 [tokenizer]
 data = "data/ns2d"
 out = "runs/vq"
-batch = 8
-steps = 5000
+batch = 32
+steps = 10000
 lr = 0.0003
-codebook = 1024
-embed = 64
+codebook = 512
+embed = 128
 hidden = 128
 seed = 0
 log_every = 50
 tb = 1
 stats = "data/ns2d_stats.npz"
 
-loss_alpha = 1.0
+loss_alpha = 0.1
 loss_beta = 0.25
-loss_gamma = 0.5
+loss_gamma = 0.1

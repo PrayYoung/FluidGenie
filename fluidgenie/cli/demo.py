@@ -59,6 +59,7 @@ def main():
     # tokenizer demo
     ap.add_argument("--frame", type=int, default=0)
     ap.add_argument("--save_gif", type=int, default=0, help="1=save all frames as GIF")
+    ap.add_argument("--view", type=str, default="density", choices=["density", "vorticity", "speed", "channel0"])
 
     # rollout config
     ap.add_argument("--dyn_ckpt", type=str, default="")
@@ -74,6 +75,7 @@ def main():
     ap.add_argument("--dropout", type=float, default=0.1)
     ap.add_argument("--mask_steps", type=int, default=8)
     ap.add_argument("--kv_cache", type=int, default=1, help="1=use KV cache for transformer rollout")
+    ap.add_argument("--rollout_view", type=str, default="density", choices=["density", "vorticity", "speed", "channel0"])
 
     args = ap.parse_args()
 
@@ -99,6 +101,7 @@ def main():
             hidden=args.hidden,
             stats_path=args.stats if args.stats else None,
             save_gif=bool(args.save_gif),
+            view=args.view,
         )
         return
 
@@ -124,6 +127,7 @@ def main():
         model_type=args.model,
         use_kv_cache=bool(args.kv_cache),
         mask_steps=args.mask_steps,
+        view=args.rollout_view,
         stats_path=args.stats if args.stats else None,
     )
 

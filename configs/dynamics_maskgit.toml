@@ -3,14 +3,14 @@ model = "maskgit"
 data = "data/ns2d"
 vq_ckpt = "runs/vq/latest.ckpt"
 out = "runs/dyn_maskgit"
-steps = 20000
+steps = 10000
 batch = 4
 context = 2
 lr = 0.0003
 seed = 0
 
 codebook = 512
-embed = 64
+embed = 128
 hidden = 128
 
 d_model = 256
