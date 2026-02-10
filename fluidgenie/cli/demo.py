@@ -73,6 +73,7 @@ def main():
     ap.add_argument("--n_layers", type=int, default=6)
     ap.add_argument("--dropout", type=float, default=0.1)
     ap.add_argument("--mask_steps", type=int, default=8)
+    ap.add_argument("--kv_cache", type=int, default=1, help="1=use KV cache for transformer rollout")
 
     args = ap.parse_args()
 
@@ -121,6 +122,7 @@ def main():
         n_layers=args.n_layers,
         dropout=args.dropout,
         model_type=args.model,
+        use_kv_cache=bool(args.kv_cache),
         mask_steps=args.mask_steps,
         stats_path=args.stats if args.stats else None,
     )

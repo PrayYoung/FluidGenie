@@ -13,28 +13,40 @@ class DynConfig:
 
 class TransformerDynamics(nn.Module):
     cfg: DynConfig
+
     @nn.compact
-    def __call__(self, tok_seq, train: bool):
+    def __call__(self, tok_seq, train: bool, decode: bool = False):
         """
-        tok_seq: int32 [B, L]  (L=context*h*w)
+        tok_seq: int32 [B, L]
         returns logits: [B, L, vocab]
         """
         x = nn.Embed(self.cfg.vocab_size, self.cfg.d_model)(tok_seq)
+
         # learned positional embeddings
         pos = self.param("pos_emb", nn.initializers.normal(stddev=0.02), (self.cfg.max_len, self.cfg.d_model))
-        x = x + pos[None, : x.shape[1], :]
+        if decode:
+            cache_index = self.variable("cache", "cache_index", lambda: jnp.array(0))
+            pos_slice = pos[cache_index.value]
+            x = x + pos_slice[None, None, :]
+            cache_index.value = cache_index.value + x.shape[1]
+            mask = None
+        else:
+            x = x + pos[None, : x.shape[1], :]
+            mask = nn.make_causal_mask(tok_seq, dtype=jnp.bool_)
 
         x = nn.Dropout(self.cfg.dropout)(x, deterministic=not train)
-        mask = nn.make_causal_mask(tok_seq, dtype=jnp.bool_)
 
         for _ in range(self.cfg.n_layers):
-            # self-attention block
             h = nn.LayerNorm()(x)
-            h = nn.SelfAttention(num_heads=self.cfg.n_heads, qkv_features=self.cfg.d_model,
-                                 dropout_rate=self.cfg.dropout, deterministic=not train)(h, mask=mask)
+            h = nn.SelfAttention(
+                num_heads=self.cfg.n_heads,
+                qkv_features=self.cfg.d_model,
+                dropout_rate=self.cfg.dropout,
+                deterministic=not train,
+                decode=decode,
+            )(h, mask=mask)
             x = x + h
 
-            # MLP block
             h = nn.LayerNorm()(x)
             h = nn.Dense(self.cfg.d_model * 4)(h)
             h = nn.gelu(h)

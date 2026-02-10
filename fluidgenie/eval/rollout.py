@@ -52,6 +52,41 @@ def rollout_tokens_autoregressive(dyn_model, dyn_params, tok_in: jnp.ndarray, L_
     return tok_out
 
 
+def rollout_tokens_autoregressive_cached(dyn_model, dyn_params, tok_in: jnp.ndarray, L_out: int) -> jnp.ndarray:
+    """
+    Autoregressive rollout using KV cache (decode=True).
+    """
+    B, L_in = tok_in.shape
+    rng = jax.random.PRNGKey(0)
+    variables = dyn_model.init(rng, jnp.zeros((B, 1), dtype=jnp.int32), train=False, decode=True)
+    cache = variables["cache"]
+
+    # prefill cache with context tokens
+    for i in range(L_in):
+        token = tok_in[:, i:i+1]
+        _, updated = dyn_model.apply({"params": dyn_params, "cache": cache}, token, train=False, decode=True, mutable=["cache"])
+        cache = updated["cache"]
+
+    # BOS token
+    bos = jnp.zeros((B, 1), dtype=jnp.int32)
+    logits, updated = dyn_model.apply({"params": dyn_params, "cache": cache}, bos, train=False, decode=True, mutable=["cache"])
+    cache = updated["cache"]
+
+    tok_out = []
+    next_tok = sample_argmax(logits[:, -1, :])
+    tok_out.append(next_tok)
+
+    for _ in range(1, L_out):
+        token = next_tok[:, None]
+        logits, updated = dyn_model.apply({"params": dyn_params, "cache": cache}, token, train=False, decode=True, mutable=["cache"])
+        cache = updated["cache"]
+        next_tok = sample_argmax(logits[:, -1, :])
+        tok_out.append(next_tok)
+
+    tok_out = jnp.stack(tok_out, axis=1)
+    return tok_out
+
+
 def maskgit_rollout_tokens(
     dyn_model,
     dyn_params,
@@ -104,6 +139,7 @@ def run_rollout(
     n_layers: int,
     dropout: float,
     model_type: str = "transformer",
+    use_kv_cache: bool = True,
     mask_steps: int = 8,
     stats_path: Optional[str] = None,
 ) -> None:
@@ -182,7 +218,10 @@ def run_rollout(
                 mask_steps=mask_steps,
             )
         else:
-            tok_next_flat = rollout_tokens_autoregressive(dyn_model, dyn_params, tok_in, L_out=L_out, vocab=codebook_size)
+            if use_kv_cache:
+                tok_next_flat = rollout_tokens_autoregressive_cached(dyn_model, dyn_params, tok_in, L_out=L_out)
+            else:
+                tok_next_flat = rollout_tokens_autoregressive(dyn_model, dyn_params, tok_in, L_out=L_out, vocab=codebook_size)
         tok_next = unflatten_grid(tok_next_flat)
 
         x_hat = vq_decode_tokens(vq_cfg, dec_params, codebook, tok_next, out_channels=C)
