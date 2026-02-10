@@ -73,7 +73,6 @@ def make_vq_encode_tokens(vq_model: VQVAE):
     return _encode
 
 
-@jax.jit
 def vq_decode_tokens(vq_cfg: VQConfig, dec_params: dict, codebook: jnp.ndarray, tok: jnp.ndarray, out_channels: int) -> jnp.ndarray:
     z_q = codebook[tok]  # [B,h,w,D]
     decoder = Decoder(vq_cfg, out_channels=out_channels)
