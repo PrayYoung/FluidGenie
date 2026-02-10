@@ -47,6 +47,7 @@ def main():
     ap.add_argument("--out", type=str, required=True)
     ap.add_argument("--stats", type=str, default="", help="Stats .npz for normalization (mean/std)")
     ap.add_argument("--tokenizer_config", type=str, default="", help="Tokenizer TOML config (for codebook/embed/hidden/stats)")
+    ap.add_argument("--dynamics_config", type=str, default="", help="Dynamics TOML config (for model/d_model/etc)")
 
     # tokenizer ckpt
     ap.add_argument("--vq_ckpt", type=str, required=True)
@@ -89,6 +90,21 @@ def main():
             args.hidden = cfg["hidden"]
         if not args.stats and "stats" in cfg:
             args.stats = cfg["stats"]
+
+    if args.dynamics_config:
+        cfg = load_toml_config(args.dynamics_config, section="dynamics")
+        if "model" in cfg:
+            args.model = cfg["model"]
+        if "d_model" in cfg:
+            args.d_model = cfg["d_model"]
+        if "n_heads" in cfg:
+            args.n_heads = cfg["n_heads"]
+        if "n_layers" in cfg:
+            args.n_layers = cfg["n_layers"]
+        if "dropout" in cfg:
+            args.dropout = cfg["dropout"]
+        if "mask_steps" in cfg:
+            args.mask_steps = cfg["mask_steps"]
 
     if args.mode == "tokenizer":
         save_tokenizer_recon(
