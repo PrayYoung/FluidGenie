@@ -7,6 +7,7 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
+from flax.core import freeze, unfreeze
 
 try:
     import imageio.v2 as imageio
@@ -60,6 +61,10 @@ def rollout_tokens_autoregressive_cached(dyn_model, dyn_params, tok_in: jnp.ndar
     rng = jax.random.PRNGKey(0)
     variables = dyn_model.init(rng, jnp.zeros((B, 1), dtype=jnp.int32), train=False, decode=True)
     cache = variables["cache"]
+    # reset cache index to 0 because init() advances it by 1
+    cache_mut = unfreeze(cache)
+    cache_mut["cache_index"] = jnp.array(0)
+    cache = freeze(cache_mut)
 
     # prefill cache with context tokens
     for i in range(L_in):
