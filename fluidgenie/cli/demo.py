@@ -30,48 +30,16 @@ uv run python -m fluidgenie.cli.demo \
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import tyro
 
 from fluidgenie.eval.viz import save_tokenizer_recon
 from fluidgenie.eval.rollout import run_rollout
+from configs.eval_configs import DemoArgs
 
 
 # ----------------------------
 # Entrypoint
 # ----------------------------
-
-@dataclass
-class DemoArgs:
-    mode: str  # "tokenizer" | "rollout"
-    npz: str
-    out: str
-    stats: str = ""
-
-    vq_ckpt: str = ""
-    codebook: int = 512
-    embed: int = 64
-    hidden: int = 128
-
-    frame: int = 0
-    save_gif: bool = False
-    view: str = "density"  # density | vorticity | speed | channel0
-
-    dyn_ckpt: str = ""
-    start: int = 0
-    horizon: int = 60
-    context: int = 2
-
-    model: str = "transformer"  # transformer | maskgit
-    d_model: int = 256
-    n_heads: int = 8
-    n_layers: int = 6
-    dropout: float = 0.1
-    mask_steps: int = 8
-    kv_cache: bool = True
-    rollout_view: str = "density"
-
 
 def main():
     args = tyro.cli(DemoArgs)

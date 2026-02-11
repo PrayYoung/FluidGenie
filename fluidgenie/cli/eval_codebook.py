@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import glob
 import os
 from pathlib import Path
@@ -12,18 +11,7 @@ from flax.serialization import from_bytes
 import tyro
 
 from fluidgenie.models.vq_tokenizer import VQVAE, VQConfig
-
-
-@dataclass
-class EvalCodebookArgs:
-    data: str
-    vq_ckpt: str
-    codebook: int = 1024
-    embed: int = 64
-    hidden: int = 128
-    frames: int = 8
-    episodes: int = 20
-    stats: str = ""
+from configs.eval_configs import EvalCodebookArgs
 
 
 def main():
