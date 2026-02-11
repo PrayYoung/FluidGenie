@@ -58,6 +58,13 @@ def main():
             stats_path=args.stats if args.stats else None,
             save_gif=args.save_gif,
             view=args.view,
+            tokenizer_arch=args.tokenizer_arch,
+            patch_size=args.patch_size,
+            model_dim=args.model_dim,
+            num_blocks=args.num_blocks,
+            num_heads=args.num_heads,
+            dropout=args.dropout,
+            codebook_dropout=args.codebook_dropout,
         )
         return
 
@@ -86,6 +93,23 @@ def main():
         mask_steps=args.mask_steps,
         view=args.rollout_view,
         stats_path=args.stats if args.stats else None,
+        tokenizer_arch=args.tokenizer_arch,
+        patch_size=args.patch_size,
+        model_dim=args.model_dim,
+        num_blocks=args.num_blocks,
+        num_heads=args.num_heads,
+        tokenizer_dropout=args.dropout,
+        codebook_dropout=args.codebook_dropout,
+        use_lam=args.use_lam,
+        lam_ckpt=args.lam_ckpt,
+        lam_model_dim=args.lam_model_dim,
+        lam_latent_dim=args.lam_latent_dim,
+        lam_num_latents=args.lam_num_latents,
+        lam_patch_size=args.lam_patch_size,
+        lam_num_blocks=args.lam_num_blocks,
+        lam_num_heads=args.lam_num_heads,
+        lam_dropout=args.lam_dropout,
+        lam_codebook_dropout=args.lam_codebook_dropout,
     )
 
 

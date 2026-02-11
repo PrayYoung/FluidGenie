@@ -29,6 +29,7 @@ class TokenizerConfig:
     num_heads: int = 8
     dropout: float = 0.0
     codebook_dropout: float = 0.0
+    seq_len: int = 2
 
 
 @dataclass

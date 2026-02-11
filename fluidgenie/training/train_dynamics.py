@@ -40,8 +40,6 @@ from fluidgenie.data.dataset_npz import NPZSequenceDataset
 from fluidgenie.training.logging_utils import TrainingLogger
 from fluidgenie.models.vq_tokenizer import VQVAE, VQConfig
 from fluidgenie.models.transformer_dynamics import TransformerDynamics, DynConfig
-from fluidgenie.models.dynamics_st import DynamicsSTMaskGIT
-from fluidgenie.models.lam import LatentActionModel
 
 
 # -------------------------
@@ -169,35 +167,6 @@ def make_train_step(model_type: str, mask_token_id: int, mask_ratio_min: float, 
     return _train_step
 
 
-@jax.jit
-def train_step_st(
-    state: TrainState,
-    tok_seq: jnp.ndarray,
-    mask_key: jnp.ndarray,
-    dropout_key: jnp.ndarray,
-    latent_actions: jnp.ndarray | None = None,
-) -> Tuple[TrainState, dict]:
-    def loss_fn(params):
-        batch = {"video_tokens": tok_seq, "mask_rng": mask_key}
-        if latent_actions is not None:
-            batch["latent_actions"] = latent_actions
-        outputs = state.apply_fn(
-            {"params": params},
-            batch,
-            training=True,
-            rngs={"dropout": dropout_key},
-        )
-        mask = outputs["mask"].astype(jnp.float32)
-        logits = outputs["token_logits"]
-        ce = optax.softmax_cross_entropy_with_integer_labels(logits, tok_seq)
-        denom = jnp.maximum(mask.sum(), 1.0)
-        loss = (mask * ce).sum() / denom
-        acc = (mask * (logits.argmax(-1) == tok_seq)).sum() / denom
-        return loss, {"loss": loss, "masked_acc": acc}
-
-    (loss, metrics), grads = jax.value_and_grad(loss_fn, has_aux=True)(state.params)
-    state = state.apply_gradients(grads=grads)
-    return state, metrics
 
 
 # -------------------------
@@ -242,69 +211,21 @@ def main():
     L_out = h_tok * w_tok
     max_len = L_in + L_out
 
-    lam_model = None
-    lam_params = None
-    lam_encode = None
-    if args.use_lam:
-        if not args.lam_ckpt:
-            raise ValueError("--lam_ckpt is required when use_lam=True")
-        lam_model = LatentActionModel(
-            in_dim=C,
-            model_dim=args.lam_model_dim,
-            latent_dim=args.lam_latent_dim,
-            num_latents=args.lam_num_latents,
-            patch_size=args.lam_patch_size,
-            num_blocks=args.lam_num_blocks,
-            num_heads=args.lam_num_heads,
-            dropout=args.lam_dropout,
-            codebook_dropout=args.lam_codebook_dropout,
-        )
-        lam_init = lam_model.init(
-            rng,
-            {"videos": jnp.zeros((1, args.context + 1, H, W, C), dtype=jnp.float32)},
-            training=False,
-        )["params"]
-        lam_params = from_bytes(lam_init, Path(args.lam_ckpt).read_bytes())
-
-        def _lam_encode(params, x_seq: jnp.ndarray) -> jnp.ndarray:
-            out = lam_model.apply(
-                {"params": params},
-                x_seq,
-                training=False,
-                method=LatentActionModel.vq_encode,
-            )
-            return out["z_q"]
-
-        lam_encode = jax.jit(_lam_encode)
-
-    # Build dynamics model
     if args.model == "st_maskgit":
-        dyn_model = DynamicsSTMaskGIT(
-            model_dim=args.d_model,
-            num_latents=args.codebook,
-            num_blocks=args.n_layers,
-            num_heads=args.n_heads,
-            dropout=args.dropout,
-            mask_ratio_min=args.mask_ratio_min,
-            mask_ratio_max=args.mask_ratio_max,
-        )
-        tok_seq0 = jnp.concatenate([tok_ctx0, tok_tgt0[:, None]], axis=1)
-        dyn_params = dyn_model.init(
-            rng, {"video_tokens": tok_seq0, "mask_rng": rng}, training=True
-        )["params"]
-    else:
-        vocab_size = args.codebook + (1 if args.model == "maskgit" else 0)
-        dyn_cfg = DynConfig(
-            vocab_size=vocab_size,
-            d_model=args.d_model,
-            n_heads=args.n_heads,
-            n_layers=args.n_layers,
-            dropout=args.dropout,
-            max_len=max_len,
-        )
-        dyn_model = TransformerDynamics(dyn_cfg)
-        seq0 = jnp.zeros((1, max_len), dtype=jnp.int32)
-        dyn_params = dyn_model.init(rng, seq0, train=True)["params"]
+        raise ValueError("Use train_dynamics_st.py for model=st_maskgit.")
+
+    vocab_size = args.codebook + (1 if args.model == "maskgit" else 0)
+    dyn_cfg = DynConfig(
+        vocab_size=vocab_size,
+        d_model=args.d_model,
+        n_heads=args.n_heads,
+        n_layers=args.n_layers,
+        dropout=args.dropout,
+        max_len=max_len,
+    )
+    dyn_model = TransformerDynamics(dyn_cfg)
+    seq0 = jnp.zeros((1, max_len), dtype=jnp.int32)
+    dyn_params = dyn_model.init(rng, seq0, train=True)["params"]
 
     state = TrainState.create(
         apply_fn=dyn_model.apply,
@@ -318,41 +239,29 @@ def main():
     dropout_rng = jax.random.PRNGKey(args.seed + 1)
     mask_rng = jax.random.PRNGKey(args.seed + 2)
 
-    if args.model != "st_maskgit":
-        train_step = make_train_step(
-            args.model,
-            mask_token_id=args.codebook,
-            mask_ratio_min=args.mask_ratio_min,
-            mask_ratio_max=args.mask_ratio_max,
-            mask_schedule=args.mask_schedule,
-        )
+    train_step = make_train_step(
+        args.model,
+        mask_token_id=args.codebook,
+        mask_ratio_min=args.mask_ratio_min,
+        mask_ratio_max=args.mask_ratio_max,
+        mask_schedule=args.mask_schedule,
+    )
 
     # Train loop
     for step in trange(args.steps):
         x_ctx, x_tgt = next(loader)
         x_ctx = jnp.array(x_ctx)
         x_tgt = jnp.array(x_tgt)
-        if args.model == "st_maskgit":
-            x_seq = jnp.concatenate([x_ctx, x_tgt], axis=1)  # [B, T, H, W, C]
-            tok_seq = encode_tokens_seq(vq_encode_to_tokens, vq_params, x_seq)
-            latent_actions = None
-            if args.use_lam:
-                latent_actions = lam_encode(lam_params, x_seq)
+        # Tokenize context and target (teacher forcing)
+        tok_ctx = encode_tokens_seq(vq_encode_to_tokens, vq_params, x_ctx)
+        tok_tgt = encode_tokens_seq(vq_encode_to_tokens, vq_params, x_tgt)[:, 0]
 
-            dropout_rng, step_key = jax.random.split(dropout_rng)
-            mask_rng, mask_key = jax.random.split(mask_rng)
-            state, metrics = train_step_st(state, tok_seq, mask_key, step_key, latent_actions)
-        else:
-            # Tokenize context and target (teacher forcing)
-            tok_ctx = encode_tokens_seq(vq_encode_to_tokens, vq_params, x_ctx)
-            tok_tgt = encode_tokens_seq(vq_encode_to_tokens, vq_params, x_tgt)[:, 0]
+        tok_in = flatten_token_sequence(tok_ctx)     # [B, L_in]
+        tok_out = flatten_token_grid(tok_tgt)        # [B, L_out]
 
-            tok_in = flatten_token_sequence(tok_ctx)     # [B, L_in]
-            tok_out = flatten_token_grid(tok_tgt)        # [B, L_out]
-
-            dropout_rng, step_key = jax.random.split(dropout_rng)
-            mask_rng, mask_key = jax.random.split(mask_rng)
-            state, metrics = train_step(state, tok_in, tok_out, step_key, mask_key)
+        dropout_rng, step_key = jax.random.split(dropout_rng)
+        mask_rng, mask_key = jax.random.split(mask_rng)
+        state, metrics = train_step(state, tok_in, tok_out, step_key, mask_key)
 
         if logger.should_log(step):
             logger.log(step, metrics, prefix="train")

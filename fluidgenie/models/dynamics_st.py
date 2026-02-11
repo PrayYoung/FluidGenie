@@ -49,7 +49,8 @@ class DynamicsSTMaskGIT(nn.Module):
 
         vid_embed = self.patch_embed(video_tokens)
 
-        if training:
+        mask = batch.get("mask", None)
+        if mask is None and training:
             rng1, rng2 = jax.random.split(batch["mask_rng"])
             if self.mask_ratio_min >= self.mask_ratio_max:
                 mask_prob = self.mask_ratio_max
@@ -58,10 +59,9 @@ class DynamicsSTMaskGIT(nn.Module):
                     rng1, minval=self.mask_ratio_min, maxval=self.mask_ratio_max
                 )
             mask = jax.random.bernoulli(rng2, mask_prob, vid_embed.shape[:-1])
+        if mask is not None:
             mask = mask.at[:, 0].set(False)
             vid_embed = jnp.where(mask[..., None], self.mask_token, vid_embed)
-        else:
-            mask = None
 
         latent_actions = batch.get("latent_actions", None)
         if latent_actions is not None:

@@ -8,6 +8,7 @@ import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 from flax.core import freeze, unfreeze
+from flax.serialization import from_bytes
 
 try:
     import imageio.v2 as imageio
@@ -16,14 +17,18 @@ except Exception:  # pragma: no cover
 
 from fluidgenie.models.vq_tokenizer import VQConfig
 from fluidgenie.models.transformer_dynamics import DynConfig
+from fluidgenie.models.dynamics_st import DynamicsSTMaskGIT
+from fluidgenie.models.lam import LatentActionModel
 from fluidgenie.eval.utils import (
     ensure_dir,
     vorticity_from_uv,
-    load_vq_params,
+    load_tokenizer_params,
     load_dyn_params,
     get_codebook_and_decoder_params,
     make_vq_encode_tokens,
+    make_st_encode_tokens,
     vq_decode_tokens,
+    st_decode_tokens,
 )
 
 
@@ -128,6 +133,61 @@ def maskgit_rollout_tokens(
     return tok_out
 
 
+def st_maskgit_rollout_tokens(
+    dyn_model,
+    dyn_params,
+    tok_ctx: jnp.ndarray,
+    mask_steps: int,
+    latent_actions: jnp.ndarray | None = None,
+) -> jnp.ndarray:
+    """
+    tok_ctx: [B, context, h, w]
+    returns tok_next: [B, h, w]
+    """
+    b, t, h, w = tok_ctx.shape
+    n = h * w
+    tok_next = jnp.zeros((b, h, w), dtype=jnp.int32)
+    mask = jnp.ones((b, h, w), dtype=jnp.bool_)
+
+    for step in range(mask_steps):
+        tok_seq = jnp.concatenate([tok_ctx, tok_next[:, None]], axis=1)  # [B, T+1, h, w]
+        batch = {"video_tokens": tok_seq, "mask_rng": jax.random.PRNGKey(0), "mask": jnp.concatenate([jnp.zeros_like(tok_ctx, dtype=jnp.bool_), mask[:, None]], axis=1)}
+        if latent_actions is not None:
+            batch["latent_actions"] = latent_actions
+        logits = dyn_model.apply({"params": dyn_params}, batch, training=False)
+        logits_last = logits["token_logits"][:, -1]  # [B, N, vocab]
+        probs = jax.nn.softmax(logits_last, axis=-1)
+        pred = jnp.argmax(probs, axis=-1).astype(jnp.int32)
+        conf = jnp.max(probs, axis=-1)
+
+        t_ratio = (step + 1) / mask_steps
+        ratio = 0.5 * (1.0 + jnp.cos(jnp.pi * t_ratio))
+        k = jnp.maximum(1, jnp.floor(ratio * n).astype(jnp.int32))
+
+        def update_one(conf_row, pred_row, tok_row):
+            idx = jnp.argsort(conf_row)[::-1]
+            keep = idx[:k]
+            tok_row = tok_row.at[keep].set(pred_row[keep])
+            return tok_row
+
+        tok_next_flat = tok_next.reshape(b, n)
+        tok_next_flat = jax.vmap(update_one)(conf, pred, tok_next_flat)
+        tok_next = tok_next_flat.reshape(b, h, w)
+
+        # update mask: keep top-k, mask the rest
+        def update_mask(conf_row):
+            idx = jnp.argsort(conf_row)[::-1]
+            keep = idx[:k]
+            m = jnp.ones((n,), dtype=jnp.bool_)
+            m = m.at[keep].set(False)
+            return m
+
+        mask_flat = jax.vmap(update_mask)(conf)
+        mask = mask_flat.reshape(b, h, w)
+
+    return tok_next
+
+
 def run_rollout(
     npz_path: str,
     vq_ckpt: str,
@@ -148,6 +208,23 @@ def run_rollout(
     mask_steps: int = 8,
     view: str = "density",
     stats_path: Optional[str] = None,
+    tokenizer_arch: str = "conv",
+    patch_size: int = 4,
+    model_dim: int = 256,
+    num_blocks: int = 6,
+    num_heads: int = 8,
+    tokenizer_dropout: float = 0.0,
+    codebook_dropout: float = 0.0,
+    use_lam: bool = False,
+    lam_ckpt: str = "",
+    lam_model_dim: int = 256,
+    lam_latent_dim: int = 64,
+    lam_num_latents: int = 128,
+    lam_patch_size: int = 4,
+    lam_num_blocks: int = 6,
+    lam_num_heads: int = 8,
+    lam_dropout: float = 0.0,
+    lam_codebook_dropout: float = 0.0,
 ) -> None:
     out = ensure_dir(Path(out_dir))
 
@@ -159,8 +236,24 @@ def run_rollout(
         raise ValueError(f"Not enough frames in episode. Need start+context+horizon < T, got {start}+{context}+{horizon} >= {T}")
 
     vq_cfg = VQConfig(codebook_size=codebook_size, embed_dim=embed_dim, hidden=hidden)
-    vq_model, vq_params = load_vq_params(vq_cfg, in_channels=C, H=H, W=W, ckpt_path=vq_ckpt)
-    vq_encode_tokens = make_vq_encode_tokens(vq_model)
+    vq_model, vq_params = load_tokenizer_params(
+        tokenizer_arch,
+        vq_cfg,
+        in_channels=C,
+        H=H,
+        W=W,
+        ckpt_path=vq_ckpt,
+        patch_size=patch_size,
+        model_dim=model_dim,
+        num_blocks=num_blocks,
+        num_heads=num_heads,
+        dropout=tokenizer_dropout,
+        codebook_dropout=codebook_dropout,
+    )
+    if tokenizer_arch == "st":
+        vq_encode_tokens = make_st_encode_tokens(vq_model)
+    else:
+        vq_encode_tokens = make_vq_encode_tokens(vq_model)
 
     if stats_path:
         stats = np.load(stats_path)
@@ -179,18 +272,42 @@ def run_rollout(
     L_out = h_tok * w_tok
     max_len = L_in + L_out
 
-    vocab_size = codebook_size + (1 if model_type == "maskgit" else 0)
-    dyn_cfg = DynConfig(
-        vocab_size=vocab_size,
-        d_model=d_model,
-        n_heads=n_heads,
-        n_layers=n_layers,
-        dropout=dropout,
-        max_len=max_len,
-    )
-    dyn_model, dyn_params = load_dyn_params(dyn_cfg, max_len=max_len, ckpt_path=dyn_ckpt)
+    if model_type == "st_maskgit":
+        dyn_model = DynamicsSTMaskGIT(
+            model_dim=d_model,
+            num_latents=codebook_size,
+            num_blocks=n_layers,
+            num_heads=n_heads,
+            dropout=dropout,
+            mask_ratio_min=0.0,
+            mask_ratio_max=1.0,
+        )
+        tok_seq0 = jnp.concatenate(
+            [jnp.repeat(tok0[:, None, ...], context, axis=1), tok0[:, None, ...]], axis=1
+        )
+        dyn_init = dyn_model.init(
+            jax.random.PRNGKey(0),
+            {"video_tokens": tok_seq0, "mask_rng": jax.random.PRNGKey(0)},
+            training=False,
+        )["params"]
+        dyn_params = from_bytes(dyn_init, Path(dyn_ckpt).read_bytes())
+    else:
+        vocab_size = codebook_size + (1 if model_type == "maskgit" else 0)
+        dyn_cfg = DynConfig(
+            vocab_size=vocab_size,
+            d_model=d_model,
+            n_heads=n_heads,
+            n_layers=n_layers,
+            dropout=dropout,
+            max_len=max_len,
+        )
+        dyn_model, dyn_params = load_dyn_params(dyn_cfg, max_len=max_len, ckpt_path=dyn_ckpt)
 
-    codebook, dec_params = get_codebook_and_decoder_params(vq_params)
+    if tokenizer_arch == "conv":
+        codebook, dec_params = get_codebook_and_decoder_params(vq_params)
+    else:
+        codebook = None
+        dec_params = None
 
     ctx_frames = fields[start : start + context]  # [context,H,W,C]
     ctx_tok_list = []
@@ -211,31 +328,85 @@ def run_rollout(
     gt = fields[start + context : start + context + horizon]  # [horizon,H,W,C]
 
     tok_ctx = ctx_tok
+    lam_model = None
+    lam_params = None
+    if use_lam:
+        if not lam_ckpt:
+            raise ValueError("--lam_ckpt is required when use_lam=True")
+        lam_model = LatentActionModel(
+            in_dim=C,
+            model_dim=lam_model_dim,
+            latent_dim=lam_latent_dim,
+            num_latents=lam_num_latents,
+            patch_size=lam_patch_size,
+            num_blocks=lam_num_blocks,
+            num_heads=lam_num_heads,
+            dropout=lam_dropout,
+            codebook_dropout=lam_codebook_dropout,
+        )
+        lam_init = lam_model.init(
+            jax.random.PRNGKey(0),
+            {"videos": jnp.zeros((1, context, H, W, C), dtype=jnp.float32)},
+            training=False,
+        )["params"]
+        lam_params = from_bytes(lam_init, Path(lam_ckpt).read_bytes())
+
+    ctx_frames_dyn = fields[start : start + context]  # [context,H,W,C]
+    if mean is not None:
+        ctx_frames_dyn = (ctx_frames_dyn - mean) / (std + 1e-6)
     for k in range(horizon):
         tok_in = flatten_ctx(tok_ctx).astype(jnp.int32)
-        if model_type == "maskgit":
-            tok_next_flat = maskgit_rollout_tokens(
+        if model_type == "st_maskgit":
+            latent_actions = None
+            if use_lam:
+                lam_out = lam_model.apply(
+                    {"params": lam_params},
+                    jnp.array(ctx_frames_dyn[None, ...], dtype=jnp.float32),
+                    training=False,
+                    method=LatentActionModel.vq_encode,
+                )
+                latent_actions = lam_out["z_q"]
+            tok_next = st_maskgit_rollout_tokens(
                 dyn_model,
                 dyn_params,
-                tok_in,
-                L_out=L_out,
-                vocab=vocab_size,
-                mask_token_id=codebook_size,
+                tok_ctx,
                 mask_steps=mask_steps,
+                latent_actions=latent_actions,
             )
         else:
-            if use_kv_cache:
-                tok_next_flat = rollout_tokens_autoregressive_cached(dyn_model, dyn_params, tok_in, L_out=L_out)
+            if model_type == "maskgit":
+                tok_next_flat = maskgit_rollout_tokens(
+                    dyn_model,
+                    dyn_params,
+                    tok_in,
+                    L_out=L_out,
+                    vocab=vocab_size,
+                    mask_token_id=codebook_size,
+                    mask_steps=mask_steps,
+                )
             else:
-                tok_next_flat = rollout_tokens_autoregressive(dyn_model, dyn_params, tok_in, L_out=L_out, vocab=codebook_size)
-        tok_next = unflatten_grid(tok_next_flat)
+                if use_kv_cache:
+                    tok_next_flat = rollout_tokens_autoregressive_cached(dyn_model, dyn_params, tok_in, L_out=L_out)
+                else:
+                    tok_next_flat = rollout_tokens_autoregressive(dyn_model, dyn_params, tok_in, L_out=L_out, vocab=codebook_size)
+            tok_next = unflatten_grid(tok_next_flat)
 
-        x_hat = vq_decode_tokens(vq_cfg, dec_params, codebook, tok_next, out_channels=C)
+        if tokenizer_arch == "st":
+            x_hat = st_decode_tokens(vq_model, vq_params, tok_next, (H, W))
+        else:
+            x_hat = vq_decode_tokens(vq_cfg, dec_params, codebook, tok_next, out_channels=C)
         if mean is not None:
-            x_hat = x_hat * (std + 1e-6) + mean
-        preds.append(np.array(x_hat[0]))
+            x_hat_denorm = x_hat * (std + 1e-6) + mean
+        else:
+            x_hat_denorm = x_hat
+        preds.append(np.array(x_hat_denorm[0]))
 
         tok_ctx = jnp.concatenate([tok_ctx[:, 1:], tok_next[:, None, :, :]], axis=1)
+        if mean is not None:
+            x_hat_norm = (np.array(x_hat_denorm[0]) - mean[0, 0, 0]) / (std[0, 0, 0] + 1e-6)
+        else:
+            x_hat_norm = np.array(x_hat_denorm[0])
+        ctx_frames_dyn = np.concatenate([ctx_frames_dyn[1:], x_hat_norm[None, ...]], axis=0)
 
     preds = np.stack(preds, axis=0)
 

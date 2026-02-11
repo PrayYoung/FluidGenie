@@ -90,6 +90,8 @@ def train_step_st(
 
 def main():
     args = tyro.cli(DynamicsConfig)
+    if args.model != "st_maskgit":
+        print(f"[warn] train_dynamics_st expects model=st_maskgit, got {args.model}. Continuing.")
 
     rng = jax.random.PRNGKey(args.seed)
 

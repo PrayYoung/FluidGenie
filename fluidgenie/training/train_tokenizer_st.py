@@ -1,0 +1,136 @@
+"""
+Train ST-VQVAE tokenizer (Jafar-style) on fluid sequences.
+
+Run:
+  uv run python -m fluidgenie.training.train_tokenizer_st \
+    --data data/ns2d \
+    --out runs/vq_st \
+    --seq-len 4
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Iterator
+
+import numpy as np
+import jax
+import jax.numpy as jnp
+import optax
+from flax.training import train_state
+from flax.serialization import to_bytes
+from tqdm import trange
+import tyro
+
+from configs.model_configs import TokenizerConfig
+from fluidgenie.data.dataset_npz import NPZSequenceDataset
+from fluidgenie.training.logging_utils import TrainingLogger
+from fluidgenie.models.tokenizer_st import TokenizerSTVQVAE
+
+
+def infinite_loader(ds: NPZSequenceDataset, batch_size: int) -> Iterator[np.ndarray]:
+    idx = np.arange(len(ds))
+    rng = np.random.default_rng(0)
+    while True:
+        rng.shuffle(idx)
+        for i in range(0, len(idx), batch_size):
+            batch_idx = idx[i : i + batch_size]
+            seqs = []
+            for j in batch_idx:
+                x, y = ds[j]
+                seqs.append(np.concatenate([x, y], axis=0))
+            yield np.stack(seqs, axis=0)
+
+
+class TrainState(train_state.TrainState):
+    pass
+
+
+def make_train_step(beta: float):
+    @jax.jit
+    def _train_step(state: TrainState, batch: jnp.ndarray, dropout_key: jnp.ndarray):
+        def loss_fn(params):
+            outputs = state.apply_fn(
+                {"params": params},
+                {"videos": batch},
+                training=True,
+                rngs={"dropout": dropout_key},
+            )
+            recon = outputs["recon"]
+            mse = jnp.mean((recon - batch) ** 2)
+            q_loss = jnp.mean((jax.lax.stop_gradient(outputs["emb"]) - outputs["z"]) ** 2)
+            commit_loss = jnp.mean((outputs["emb"] - jax.lax.stop_gradient(outputs["z"])) ** 2)
+            loss = mse + q_loss + beta * commit_loss
+            return loss, {
+                "loss": loss,
+                "mse": mse,
+                "q_loss": q_loss,
+                "commit": commit_loss,
+            }
+
+        (loss, metrics), grads = jax.value_and_grad(loss_fn, has_aux=True)(state.params)
+        state = state.apply_gradients(grads=grads)
+        return state, metrics
+
+    return _train_step
+
+
+def main():
+    args = tyro.cli(TokenizerConfig)
+
+    rng = jax.random.PRNGKey(args.seed)
+
+    stats_path = args.stats if args.stats else None
+    ds = NPZSequenceDataset(args.data, context=args.seq_len - 1, pred=1, stats_path=stats_path)
+    loader = infinite_loader(ds, args.batch)
+
+    sample_x, sample_y = ds[0]
+    H, W, C = sample_x.shape[-3:]
+
+    model = TokenizerSTVQVAE(
+        in_dim=C,
+        model_dim=args.model_dim,
+        latent_dim=args.embed,
+        num_latents=args.codebook,
+        patch_size=args.patch_size,
+        num_blocks=args.num_blocks,
+        num_heads=args.num_heads,
+        dropout=args.dropout,
+        codebook_dropout=args.codebook_dropout,
+    )
+
+    batch0 = next(loader)
+    params = model.init(rng, {"videos": jnp.array(batch0)}, training=True)["params"]
+    state = TrainState.create(
+        apply_fn=model.apply,
+        params=params,
+        tx=optax.adam(args.lr),
+    )
+
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    logger = TrainingLogger(out, run_name="tokenizer_st", log_every=args.log_every, use_tb=bool(args.tb))
+    dropout_rng = jax.random.PRNGKey(args.seed + 1)
+    train_step = make_train_step(args.loss_beta)
+
+    for step in trange(args.steps):
+        batch = next(loader)
+        batch = jnp.array(batch)
+        dropout_rng, step_key = jax.random.split(dropout_rng)
+        state, metrics = train_step(state, batch, step_key)
+
+        if logger.should_log(step):
+            logger.log(step, metrics, prefix="train")
+
+        if step % 1000 == 0 and step > 0:
+            (out / f"step_{step:06d}.ckpt").write_bytes(to_bytes(state.params))
+            (out / "latest.ckpt").write_bytes(to_bytes(state.params))
+
+    (out / "final.ckpt").write_bytes(to_bytes(state.params))
+    (out / "latest.ckpt").write_bytes(to_bytes(state.params))
+    logger.close()
+    print("Saved ST tokenizer to", out)
+
+
+if __name__ == "__main__":
+    main()

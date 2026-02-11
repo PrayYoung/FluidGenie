@@ -8,7 +8,14 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 
 from fluidgenie.models.vq_tokenizer import VQConfig
-from fluidgenie.eval.utils import ensure_dir, vorticity_from_uv, load_vq_params
+from fluidgenie.eval.utils import (
+    ensure_dir,
+    vorticity_from_uv,
+    load_tokenizer_params,
+    make_vq_encode_tokens,
+    make_st_encode_tokens,
+    st_decode_tokens,
+)
 
 
 def save_tokenizer_recon(
@@ -22,6 +29,13 @@ def save_tokenizer_recon(
     stats_path: Optional[str] = None,
     save_gif: bool = False,
     view: str = "density",
+    tokenizer_arch: str = "conv",
+    patch_size: int = 4,
+    model_dim: int = 256,
+    num_blocks: int = 6,
+    num_heads: int = 8,
+    dropout: float = 0.0,
+    codebook_dropout: float = 0.0,
 ) -> None:
     out = ensure_dir(Path(out_dir))
 
@@ -31,7 +45,24 @@ def save_tokenizer_recon(
     H, W, C = x.shape
 
     vq_cfg = VQConfig(codebook_size=codebook_size, embed_dim=embed_dim, hidden=hidden)
-    vq_model, vq_params = load_vq_params(vq_cfg, in_channels=C, H=H, W=W, ckpt_path=vq_ckpt)
+    vq_model, vq_params = load_tokenizer_params(
+        tokenizer_arch,
+        vq_cfg,
+        in_channels=C,
+        H=H,
+        W=W,
+        ckpt_path=vq_ckpt,
+        patch_size=patch_size,
+        model_dim=model_dim,
+        num_blocks=num_blocks,
+        num_heads=num_heads,
+        dropout=dropout,
+        codebook_dropout=codebook_dropout,
+    )
+    if tokenizer_arch == "st":
+        vq_encode_tokens = make_st_encode_tokens(vq_model)
+    else:
+        vq_encode_tokens = make_vq_encode_tokens(vq_model)
 
     if stats_path:
         stats = np.load(stats_path)
@@ -42,11 +73,18 @@ def save_tokenizer_recon(
         x_norm = x
 
     x_in = jnp.array(x_norm[None, ...], dtype=jnp.float32)
-    x_rec, tok, commit, cb = vq_model.apply({"params": vq_params}, x_in)
-    x_rec = np.array(x_rec[0])
+    if tokenizer_arch == "st":
+        tok = vq_encode_tokens(vq_params, x_in)[0]
+        x_rec = st_decode_tokens(vq_model, vq_params, tok[None, ...], (H, W))[0]
+        commit = 0.0
+        cb = 0.0
+    else:
+        x_rec, tok, commit, cb = vq_model.apply({"params": vq_params}, x_in)
+        x_rec = np.array(x_rec[0])
+        tok = np.array(tok[0])
     if stats_path:
         x_rec = x_rec * (std + 1e-6) + mean
-    tok = np.array(tok[0])
+    tok = np.array(tok)
 
     fig = plt.figure(figsize=(12, 4))
 
@@ -88,7 +126,8 @@ def save_tokenizer_recon(
     plt.close(fig)
 
     (out / "info.txt").write_text(
-        f"npz={npz_path}\nframe={frame}\ncodebook={codebook_size}\nembed={embed_dim}\nhidden={hidden}\n"
+        f"npz={npz_path}\nframe={frame}\narch={tokenizer_arch}\ncodebook={codebook_size}\nembed={embed_dim}\n"
+        f"hidden={hidden}\npatch_size={patch_size}\nmodel_dim={model_dim}\nnum_blocks={num_blocks}\nnum_heads={num_heads}\n"
         f"commit={float(commit):.6f}\ncodebook_loss={float(cb):.6f}\n"
     )
 
@@ -109,11 +148,16 @@ def save_tokenizer_recon(
         if stats_path:
             x_in = (x_t - mean) / (std + 1e-6)
         x_in = jnp.array(x_in[None, ...], dtype=jnp.float32)
-        x_rec, tok, _, _ = vq_model.apply({"params": vq_params}, x_in)
-        x_rec = np.array(x_rec[0])
+        if tokenizer_arch == "st":
+            tok = vq_encode_tokens(vq_params, x_in)[0]
+            x_rec = st_decode_tokens(vq_model, vq_params, tok[None, ...], (H, W))[0]
+        else:
+            x_rec, tok, _, _ = vq_model.apply({"params": vq_params}, x_in)
+            x_rec = np.array(x_rec[0])
+            tok = np.array(tok[0])
         if stats_path:
             x_rec = x_rec * (std + 1e-6) + mean
-        tok = np.array(tok[0])
+        tok = np.array(tok)
 
         fig = plt.figure(figsize=(12, 4))
         if view == "density" and C >= 3:

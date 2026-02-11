@@ -11,6 +11,7 @@ from flax.serialization import from_bytes
 import tyro
 
 from fluidgenie.models.vq_tokenizer import VQVAE, VQConfig
+from fluidgenie.models.tokenizer_st import TokenizerSTVQVAE
 from configs.eval_configs import EvalCodebookArgs
 
 
@@ -24,10 +25,28 @@ def main():
     sample = np.load(files[0])["fields"][0]
     H, W, C = sample.shape
 
-    vq_cfg = VQConfig(codebook_size=args.codebook, embed_dim=args.embed, hidden=args.hidden)
-    vq_model = VQVAE(vq_cfg, in_channels=C)
     rng = jax.random.PRNGKey(0)
-    init_params = vq_model.init(rng, jnp.zeros((1, H, W, C), dtype=jnp.float32))["params"]
+    if args.tokenizer_arch == "st":
+        vq_model = TokenizerSTVQVAE(
+            in_dim=C,
+            model_dim=args.model_dim,
+            latent_dim=args.embed,
+            num_latents=args.codebook,
+            patch_size=args.patch_size,
+            num_blocks=args.num_blocks,
+            num_heads=args.num_heads,
+            dropout=args.dropout,
+            codebook_dropout=args.codebook_dropout,
+        )
+        init_params = vq_model.init(
+            rng,
+            {"videos": jnp.zeros((1, 1, H, W, C), dtype=jnp.float32)},
+            training=False,
+        )["params"]
+    else:
+        vq_cfg = VQConfig(codebook_size=args.codebook, embed_dim=args.embed, hidden=args.hidden)
+        vq_model = VQVAE(vq_cfg, in_channels=C)
+        init_params = vq_model.init(rng, jnp.zeros((1, H, W, C), dtype=jnp.float32))["params"]
     vq_params = from_bytes(init_params, Path(args.vq_ckpt).read_bytes())
 
     if args.stats:
@@ -42,7 +61,10 @@ def main():
         if mean is not None:
             x = (x - mean) / (std + 1e-6)
         x = jnp.array(x, dtype=jnp.float32)
-        _x_rec, tok, _c, _cb = vq_model.apply({"params": vq_params}, x)
+        if args.tokenizer_arch == "st":
+            tok = vq_model.apply({"params": vq_params}, x, method=TokenizerSTVQVAE.encode_frame)
+        else:
+            _x_rec, tok, _c, _cb = vq_model.apply({"params": vq_params}, x)
         return np.array(tok)
 
     all_tok = []
