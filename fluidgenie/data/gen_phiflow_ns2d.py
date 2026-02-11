@@ -10,46 +10,16 @@ PhiFlow NS2D data generator (JAX backend) — stable version
 
 from __future__ import annotations
 
-import argparse
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
+from dataclasses import asdict
 from pathlib import Path
 from typing import Optional, Tuple, Dict, Any
 
 import numpy as np
+import tyro
 
 from phi.jax.flow import *  # noqa: F401,F403
-
-
-@dataclass
-class NS2DConfig:
-    seed: int = 0
-    steps: int = 200
-
-    # Use a smaller dt by default to avoid CFL issues
-    dt: float = 0.02
-
-    resolution: int = 128
-    viscosity: float = 0.001
-    use_implicit_diffusion: bool = False
-    init_velocity_noise: float = 0.10
-
-    with_density: bool = True
-
-    # Optional internal substeps per saved frame
-    substeps: int = 5
-    save_every: int = 1
-    jit_step: bool = True
-
-    # External forcing and initialization
-    forcing_strength: float = 0.0
-    forcing_radius: float = 0.08
-    density_radius: float = 0.08
-
-    # Pressure solve tuning (main runtime hotspot)
-    pressure_solver: str = "CG"
-    pressure_rel_tol: float = 1e-4
-    pressure_abs_tol: float = 1e-4
-    pressure_max_iters: int = 200
+from configs.gen_data_configs import NS2DConfig, GenDataArgs
 
 
 def _rng(seed: int) -> np.random.RandomState:
@@ -229,3 +199,24 @@ def generate_dataset(out_dir: str, episodes: int = 10, cfg: Optional[NS2DConfig]
         ep_cfg.seed = cfg.seed + i
         fields, meta = generate_episode(ep_cfg)
         save_episode_npz(out_dir / f"{name_prefix}_{i:06d}.npz", fields, meta)
+
+
+def main():
+    args = tyro.cli(GenDataArgs)
+    cfg = NS2DConfig(
+        seed=args.seed,
+        steps=args.steps,
+        dt=args.dt,
+        resolution=args.res,
+        viscosity=args.viscosity,
+        with_density=bool(args.density),
+        substeps=args.substeps,
+        save_every=args.save_every,
+        init_velocity_noise=args.noise,
+    )
+    generate_dataset(args.out, episodes=args.episodes, cfg=cfg)
+    print(f"Wrote {args.out}/*.npz")
+
+
+if __name__ == "__main__":
+    main()

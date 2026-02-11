@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import argparse
+from dataclasses import dataclass
 import glob
 import os
 from pathlib import Path
@@ -9,34 +9,25 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 from flax.serialization import from_bytes
+import tyro
 
 from fluidgenie.models.vq_tokenizer import VQVAE, VQConfig
-from fluidgenie.training.config_utils import load_toml_config
+
+
+@dataclass
+class EvalCodebookArgs:
+    data: str
+    vq_ckpt: str
+    codebook: int = 1024
+    embed: int = 64
+    hidden: int = 128
+    frames: int = 8
+    episodes: int = 20
+    stats: str = ""
 
 
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--data", type=str, required=True, help="Directory with .npz episodes")
-    ap.add_argument("--vq_ckpt", type=str, required=True)
-    ap.add_argument("--codebook", type=int, default=1024)
-    ap.add_argument("--embed", type=int, default=64)
-    ap.add_argument("--hidden", type=int, default=128)
-    ap.add_argument("--frames", type=int, default=8, help="Frames per episode to sample")
-    ap.add_argument("--episodes", type=int, default=20, help="Number of episodes to sample")
-    ap.add_argument("--stats", type=str, default="", help="Stats .npz for normalization (mean/std)")
-    ap.add_argument("--tokenizer_config", type=str, default="", help="Tokenizer TOML config (for codebook/embed/hidden/stats)")
-    args = ap.parse_args()
-
-    if args.tokenizer_config:
-        cfg = load_toml_config(args.tokenizer_config, section="tokenizer")
-        if "codebook" in cfg:
-            args.codebook = cfg["codebook"]
-        if "embed" in cfg:
-            args.embed = cfg["embed"]
-        if "hidden" in cfg:
-            args.hidden = cfg["hidden"]
-        if not args.stats and "stats" in cfg:
-            args.stats = cfg["stats"]
+    args = tyro.cli(EvalCodebookArgs)
 
     files = sorted(glob.glob(os.path.join(args.data, "*.npz")))[: args.episodes]
     if not files:

@@ -13,7 +13,7 @@ Run:
 
 from __future__ import annotations
 
-import argparse
+from configs.model_configs import TokenizerConfig
 from pathlib import Path
 from typing import Iterator, Tuple
 
@@ -26,9 +26,9 @@ from flax.serialization import to_bytes
 from tqdm import trange
 
 from fluidgenie.data.dataset_npz import NPZSequenceDataset
-from fluidgenie.training.config_utils import load_toml_config, apply_config_defaults
 from fluidgenie.training.logging_utils import TrainingLogger
 from fluidgenie.models.vq_tokenizer import VQVAE, VQConfig
+import tyro
 
 
 # -------------------------
@@ -141,46 +141,7 @@ def make_train_step(alpha: float, beta: float, gamma: float):
 # -------------------------
 
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--config", type=str, default="", help="TOML config file")
-    ap.add_argument("--data", type=str, default=None)
-    ap.add_argument("--out", type=str, default=None)
-    ap.add_argument("--batch", type=int, default=8)
-    ap.add_argument("--steps", type=int, default=5000)
-    ap.add_argument("--lr", type=float, default=3e-4)
-    ap.add_argument("--codebook", type=int, default=1024)
-    ap.add_argument("--embed", type=int, default=64)
-    ap.add_argument("--hidden", type=int, default=128)
-    ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--log_every", type=int, default=50)
-    ap.add_argument("--tb", type=int, default=1, help="1=write TensorBoard logs, 0=disable")
-    ap.add_argument("--stats", type=str, default="", help="Path to stats .npz for normalization")
-    ap.add_argument("--loss_alpha", type=float, default=1.0)
-    ap.add_argument("--loss_beta", type=float, default=0.25)
-    ap.add_argument("--loss_gamma", type=float, default=0.5)
-    args = ap.parse_args()
-
-    defaults = {
-        "data": None,
-        "out": None,
-        "batch": 8,
-        "steps": 5000,
-        "lr": 3e-4,
-        "codebook": 1024,
-        "embed": 64,
-        "hidden": 128,
-        "seed": 0,
-        "log_every": 50,
-        "tb": 1,
-        "stats": "",
-        "loss_alpha": 1.0,
-        "loss_beta": 0.25,
-        "loss_gamma": 0.5,
-    }
-    cfg = load_toml_config(args.config, section="tokenizer") if args.config else {}
-    apply_config_defaults(args, defaults, cfg)
-    if args.data is None or args.out is None:
-        raise ValueError("--data and --out are required (or set in config).")
+    args = tyro.cli(TokenizerConfig)
 
     rng = jax.random.PRNGKey(args.seed)
 

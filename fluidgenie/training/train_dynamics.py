@@ -21,7 +21,7 @@ Run (example):
 
 from __future__ import annotations
 
-import argparse
+from configs.model_configs import DynamicsConfig
 from pathlib import Path
 from typing import Iterator, Tuple
 
@@ -36,7 +36,6 @@ from tqdm import trange
 from einops import rearrange
 
 from fluidgenie.data.dataset_npz import NPZSequenceDataset
-from fluidgenie.training.config_utils import load_toml_config, apply_config_defaults
 from fluidgenie.training.logging_utils import TrainingLogger
 from fluidgenie.models.vq_tokenizer import VQVAE, VQConfig
 from fluidgenie.models.transformer_dynamics import TransformerDynamics, DynConfig
@@ -162,69 +161,7 @@ def make_train_step(model_type: str, mask_token_id: int, mask_ratio_min: float, 
 # -------------------------
 
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--config", type=str, default="", help="TOML config file")
-
-    ap.add_argument("--data", type=str, default=None)
-    ap.add_argument("--vq_ckpt", type=str, default=None)
-    ap.add_argument("--out", type=str, default=None)
-
-    ap.add_argument("--steps", type=int, default=20000)
-    ap.add_argument("--batch", type=int, default=4)
-    ap.add_argument("--context", type=int, default=2)
-    ap.add_argument("--lr", type=float, default=3e-4)
-    ap.add_argument("--seed", type=int, default=0)
-
-    # must match tokenizer training
-    ap.add_argument("--codebook", type=int, default=512)
-    ap.add_argument("--embed", type=int, default=64)
-    ap.add_argument("--hidden", type=int, default=128)
-
-    # dynamics model
-    ap.add_argument("--model", type=str, default="transformer", choices=["transformer", "maskgit"])
-    ap.add_argument("--d_model", type=int, default=256)
-    ap.add_argument("--n_heads", type=int, default=8)
-    ap.add_argument("--n_layers", type=int, default=6)
-    ap.add_argument("--dropout", type=float, default=0.1)
-    ap.add_argument("--log_every", type=int, default=50)
-    ap.add_argument("--tb", type=int, default=1, help="1=write TensorBoard logs, 0=disable")
-    ap.add_argument("--stats", type=str, default="", help="Path to stats .npz for normalization")
-    ap.add_argument("--mask_ratio_min", type=float, default=0.1)
-    ap.add_argument("--mask_ratio_max", type=float, default=0.9)
-    ap.add_argument("--mask_schedule", type=str, default="cosine", choices=["cosine", "uniform"])
-    ap.add_argument("--mask_steps", type=int, default=8)
-
-    args = ap.parse_args()
-
-    defaults = {
-        "data": None,
-        "vq_ckpt": None,
-        "out": None,
-        "steps": 20000,
-        "batch": 4,
-        "context": 2,
-        "lr": 3e-4,
-        "seed": 0,
-        "codebook": 512,
-        "embed": 64,
-        "hidden": 128,
-        "model": "transformer",
-        "d_model": 256,
-        "n_heads": 8,
-        "n_layers": 6,
-        "dropout": 0.1,
-        "log_every": 50,
-        "tb": 1,
-        "stats": "",
-        "mask_ratio_min": 0.1,
-        "mask_ratio_max": 0.9,
-        "mask_schedule": "cosine",
-        "mask_steps": 8,
-    }
-    cfg = load_toml_config(args.config, section="dynamics") if args.config else {}
-    apply_config_defaults(args, defaults, cfg)
-    if args.data is None or args.vq_ckpt is None or args.out is None:
-        raise ValueError("--data, --vq_ckpt and --out are required (or set in config).")
+    args = tyro.cli(DynamicsConfig)
 
     rng = jax.random.PRNGKey(args.seed)
 
@@ -336,3 +273,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+import tyro
