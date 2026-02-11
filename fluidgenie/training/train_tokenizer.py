@@ -27,6 +27,7 @@ from tqdm import trange
 
 from fluidgenie.data.dataset_npz import NPZSequenceDataset
 from fluidgenie.training.logging_utils import TrainingLogger
+from fluidgenie.training.losses import tokenizer_conv_loss
 from fluidgenie.models.vq_tokenizer import VQVAE, VQConfig
 import tyro
 
@@ -54,23 +55,6 @@ class TrainState(train_state.TrainState):
     pass
 
 
-def spatial_grads(img):
-    # Central differences with edge padding to keep H,W sizes
-    img_pad = jnp.pad(img, ((0, 0), (1, 1), (1, 1), (0, 0)), mode="edge")
-    dx = 0.5 * (img_pad[:, 1:-1, 2:, :] - img_pad[:, 1:-1, :-2, :])
-    dy = 0.5 * (img_pad[:, 2:, 1:-1, :] - img_pad[:, :-2, 1:-1, :])
-    return dx, dy
-
-
-def compute_vorticity(img):
-    # img: [B,H,W,C], assumes C>=2 with u=0, v=1
-    u = img[..., 0]
-    v = img[..., 1]
-    u_pad = jnp.pad(u, ((0, 0), (1, 1), (1, 1)), mode="edge")
-    v_pad = jnp.pad(v, ((0, 0), (1, 1), (1, 1)), mode="edge")
-    du_dy = 0.5 * (u_pad[:, 2:, 1:-1] - u_pad[:, :-2, 1:-1])
-    dv_dx = 0.5 * (v_pad[:, 1:-1, 2:] - v_pad[:, 1:-1, :-2])
-    return dv_dx - du_dy
 # -------------------------
 # Training step
 # -------------------------
@@ -79,61 +63,13 @@ def make_train_step(alpha: float, beta: float, gamma: float):
     @jax.jit
     def _train_step(state: TrainState, batch: jnp.ndarray):
         def loss_fn(params):
-            x_rec, _, commit_loss, codebook_loss = state.apply_fn({"params": params}, batch)
-            # 1. reconstruction loss
-            recon_loss = jnp.mean((x_rec - batch) ** 2)
-            # 2. physics/gradient loss
-            dy_true, dx_true = spatial_grads(batch)
-            dy_rec, dx_rec = spatial_grads(x_rec)
-            grad_loss = jnp.mean((dx_rec - dx_true) ** 2 + (dy_rec - dy_true) ** 2)
-            w_true = compute_vorticity(batch)
-            w_rec = compute_vorticity(x_rec)
-            vorticity_loss = jnp.mean((w_rec - w_true) ** 2)
-
-            total_loss = recon_loss + alpha * grad_loss + gamma * vorticity_loss + \
-                         codebook_loss + beta * commit_loss
-
-            return total_loss, {
-                "loss": total_loss,
-                "recon": recon_loss,
-                "commit": commit_loss,
-                "codebook": codebook_loss,
-                "grad": grad_loss,
-                "vorticity": vorticity_loss,
-            }
+            return tokenizer_conv_loss(state.apply_fn, params, batch, alpha, beta, gamma)
 
         (loss, metrics), grads = jax.value_and_grad(loss_fn, has_aux=True)(state.params)
         state = state.apply_gradients(grads=grads)
         return state, metrics
 
     return _train_step
-    def loss_fn(params):
-        x_rec, _, commit_loss, codebook_loss = state.apply_fn({"params": params}, batch)
-        # 1. reconstruction loss
-        recon_loss = jnp.mean((x_rec - batch) ** 2)
-        # 2. physics/gradient loss
-        dy_true, dx_true = spatial_grads(batch)
-        dy_rec, dx_rec = spatial_grads(x_rec)
-        grad_loss = jnp.mean((dx_rec - dx_true) ** 2 + (dy_rec - dy_true) ** 2)
-        w_true = compute_vorticity(batch)
-        w_rec = compute_vorticity(x_rec)
-        vorticity_loss = jnp.mean((w_rec - w_true) ** 2)
-        # 3. weighted total loss
-        total_loss = recon_loss + alpha * grad_loss + gamma * vorticity_loss + \
-                     codebook_loss + beta * commit_loss
-
-        return total_loss, {
-            "loss": total_loss,
-            "recon": recon_loss,
-            "commit": commit_loss,
-            "codebook": codebook_loss,
-            "grad": grad_loss,
-            "vorticity": vorticity_loss,
-        }
-
-    (loss, metrics), grads = jax.value_and_grad(loss_fn, has_aux=True)(state.params)
-    state = state.apply_gradients(grads=grads)
-    return state, metrics
 
 
 # -------------------------

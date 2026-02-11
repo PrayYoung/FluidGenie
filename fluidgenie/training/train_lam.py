@@ -26,6 +26,7 @@ import tyro
 from configs.model_configs import LAMConfig
 from fluidgenie.data.dataset_npz import NPZSequenceDataset
 from fluidgenie.training.logging_utils import TrainingLogger
+from fluidgenie.training.losses import lam_loss
 from fluidgenie.models.lam import LatentActionModel
 
 
@@ -50,24 +51,7 @@ class TrainState(train_state.TrainState):
 @jax.jit
 def train_step(state: TrainState, batch: jnp.ndarray, beta: float, dropout_key: jnp.ndarray):
     def loss_fn(params):
-        outputs = state.apply_fn(
-            {"params": params},
-            {"videos": batch},
-            training=True,
-            rngs={"dropout": dropout_key},
-        )
-        gt_future = batch[:, 1:]
-        recon = outputs["recon"]
-        mse = jnp.mean((recon - gt_future) ** 2)
-        q_loss = jnp.mean((jax.lax.stop_gradient(outputs["emb"]) - outputs["z"]) ** 2)
-        commit_loss = jnp.mean((outputs["emb"] - jax.lax.stop_gradient(outputs["z"])) ** 2)
-        loss = mse + q_loss + beta * commit_loss
-        return loss, {
-            "loss": loss,
-            "mse": mse,
-            "q_loss": q_loss,
-            "commit": commit_loss,
-        }
+        return lam_loss(state.apply_fn, params, batch, beta, dropout_key)
 
     (loss, metrics), grads = jax.value_and_grad(loss_fn, has_aux=True)(state.params)
     state = state.apply_gradients(grads=grads)
