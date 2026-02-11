@@ -21,6 +21,15 @@ class TokenizerConfig:
     loss_beta: float = 0.25
     loss_gamma: float = 0.5
 
+    # Optional spatial-temporal tokenizer
+    arch: str = "conv"  # conv | st
+    patch_size: int = 4
+    model_dim: int = 256
+    num_blocks: int = 6
+    num_heads: int = 8
+    dropout: float = 0.0
+    codebook_dropout: float = 0.0
+
 
 @dataclass
 class DynamicsConfig:
@@ -51,3 +60,39 @@ class DynamicsConfig:
     mask_ratio_max: float = 0.9
     mask_schedule: str = "cosine"
     mask_steps: int = 8
+
+    # Optional LAM conditioning for spatial-temporal dynamics
+    use_lam: bool = False
+    lam_ckpt: str = ""
+    lam_model_dim: int = 256
+    lam_latent_dim: int = 64
+    lam_num_latents: int = 128
+    lam_patch_size: int = 4
+    lam_num_blocks: int = 6
+    lam_num_heads: int = 8
+    lam_dropout: float = 0.0
+    lam_codebook_dropout: float = 0.0
+
+
+@dataclass
+class LAMConfig:
+    data: str
+    out: str
+    steps: int = 20000
+    batch: int = 4
+    seq_len: int = 8
+    lr: float = 3e-4
+    seed: int = 0
+    log_every: int = 50
+    tb: int = 1
+    stats: str = ""
+
+    vq_beta: float = 0.25
+    model_dim: int = 256
+    latent_dim: int = 64
+    num_latents: int = 128
+    patch_size: int = 4
+    num_blocks: int = 6
+    num_heads: int = 8
+    dropout: float = 0.0
+    codebook_dropout: float = 0.0
