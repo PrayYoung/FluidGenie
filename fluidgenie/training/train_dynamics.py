@@ -35,7 +35,7 @@ from tqdm import trange
 from einops import rearrange
 import tyro
 
-from fluidgenie.data.dataset_npz import NPZSequenceDataset
+from fluidgenie.data.dataset_npz import NPZSequenceDataset, prefetch_iter
 from fluidgenie.training.logging_utils import TrainingLogger
 from fluidgenie.training.losses import dynamics_ar_loss
 from fluidgenie.training.checkpoint_utils import save_params, load_params
@@ -189,6 +189,8 @@ def main():
     stats_path = args.stats if args.stats else None
     ds = NPZSequenceDataset(args.data, context=args.context, pred=1, stats_path=stats_path)
     loader = infinite_loader(ds, args.batch)
+    if args.prefetch_batches > 0:
+        loader = prefetch_iter(loader, prefetch=args.prefetch_batches, num_workers=args.prefetch_workers)
 
     # Infer shapes (H,W,C)
     x_ctx0, x_tgt0 = next(loader)

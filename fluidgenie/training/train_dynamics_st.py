@@ -23,7 +23,7 @@ from tqdm import trange
 import tyro
 
 from configs.model_configs import DynamicsConfig
-from fluidgenie.data.dataset_npz import NPZSequenceDataset
+from fluidgenie.data.dataset_npz import NPZSequenceDataset, prefetch_iter
 from fluidgenie.training.logging_utils import TrainingLogger
 from fluidgenie.training.losses import dynamics_st_loss
 from fluidgenie.training.checkpoint_utils import save_params, load_params
@@ -91,6 +91,8 @@ def main():
     stats_path = args.stats if args.stats else None
     ds = NPZSequenceDataset(args.data, context=args.context, pred=1, stats_path=stats_path)
     loader = infinite_loader(ds, args.batch)
+    if args.prefetch_batches > 0:
+        loader = prefetch_iter(loader, prefetch=args.prefetch_batches, num_workers=args.prefetch_workers)
 
     x_ctx0, x_tgt0 = next(loader)
     H, W, C = x_ctx0.shape[-3:]

@@ -24,7 +24,7 @@ import optax
 from flax.training import train_state
 from tqdm import trange
 
-from fluidgenie.data.dataset_npz import NPZSequenceDataset
+from fluidgenie.data.dataset_npz import NPZSequenceDataset, prefetch_iter
 from fluidgenie.training.logging_utils import TrainingLogger
 from fluidgenie.training.losses import tokenizer_conv_loss
 from fluidgenie.training.checkpoint_utils import save_params
@@ -92,6 +92,8 @@ def main():
         mean = None
         std = None
     loader = infinite_loader(ds, args.batch)
+    if args.prefetch_batches > 0:
+        loader = prefetch_iter(loader, prefetch=args.prefetch_batches, num_workers=args.prefetch_workers)
 
     # Infer input channels
     sample_x, _ = ds[0]

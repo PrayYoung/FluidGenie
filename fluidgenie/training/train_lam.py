@@ -23,7 +23,7 @@ from tqdm import trange
 import tyro
 
 from configs.model_configs import LAMConfig
-from fluidgenie.data.dataset_npz import NPZSequenceDataset
+from fluidgenie.data.dataset_npz import NPZSequenceDataset, prefetch_iter
 from fluidgenie.training.logging_utils import TrainingLogger
 from fluidgenie.training.losses import lam_loss
 from fluidgenie.training.checkpoint_utils import save_params
@@ -66,6 +66,8 @@ def main():
     stats_path = args.stats if args.stats else None
     ds = NPZSequenceDataset(args.data, context=args.seq_len - 1, pred=1, stats_path=stats_path)
     loader = infinite_loader(ds, args.batch)
+    if args.prefetch_batches > 0:
+        loader = prefetch_iter(loader, prefetch=args.prefetch_batches, num_workers=args.prefetch_workers)
 
     sample_x, sample_y = ds[0]
     H, W, C = sample_x.shape[-3:]
