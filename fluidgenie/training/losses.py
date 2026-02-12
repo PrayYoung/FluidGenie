@@ -113,3 +113,49 @@ def lam_loss(
         "q_loss": q_loss,
         "commit": commit_loss,
     }
+
+
+def dynamics_ar_loss(
+    apply_fn,
+    params: Dict[str, Any],
+    seq: jnp.ndarray,
+    tok_tgt: jnp.ndarray,
+    l_in: int,
+    dropout_key: jnp.ndarray,
+    mask: jnp.ndarray | None = None,
+) -> Tuple[jnp.ndarray, Dict[str, jnp.ndarray]]:
+    logits = apply_fn({"params": params}, seq, train=True, rngs={"dropout": dropout_key})
+    logits_tgt = logits[:, l_in:, :]
+    ce = jax.nn.softmax_cross_entropy_with_integer_labels(logits_tgt, tok_tgt)
+    if mask is not None:
+        mask_f = mask.astype(ce.dtype)
+        loss = (ce * mask_f).sum() / (mask_f.sum() + 1e-6)
+    else:
+        loss = ce.mean()
+    return loss, {"loss": loss}
+
+
+def dynamics_st_loss(
+    apply_fn,
+    params: Dict[str, Any],
+    tok_seq: jnp.ndarray,
+    mask_key: jnp.ndarray,
+    dropout_key: jnp.ndarray,
+    latent_actions: jnp.ndarray | None = None,
+) -> Tuple[jnp.ndarray, Dict[str, jnp.ndarray]]:
+    batch = {"video_tokens": tok_seq, "mask_rng": mask_key}
+    if latent_actions is not None:
+        batch["latent_actions"] = latent_actions
+    outputs = apply_fn(
+        {"params": params},
+        batch,
+        training=True,
+        rngs={"dropout": dropout_key},
+    )
+    mask = outputs["mask"].astype(jnp.float32)
+    logits = outputs["token_logits"]
+    ce = jax.nn.softmax_cross_entropy_with_integer_labels(logits, tok_seq)
+    denom = jnp.maximum(mask.sum(), 1.0)
+    loss = (mask * ce).sum() / denom
+    acc = (mask * (logits.argmax(-1) == tok_seq)).sum() / denom
+    return loss, {"loss": loss, "masked_acc": acc}

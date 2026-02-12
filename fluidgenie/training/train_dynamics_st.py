@@ -26,6 +26,7 @@ import tyro
 from configs.model_configs import DynamicsConfig
 from fluidgenie.data.dataset_npz import NPZSequenceDataset
 from fluidgenie.training.logging_utils import TrainingLogger
+from fluidgenie.training.losses import dynamics_st_loss
 from fluidgenie.models.vq_tokenizer import VQVAE, VQConfig
 from fluidgenie.models.dynamics_st import DynamicsSTMaskGIT
 from fluidgenie.models.lam import LatentActionModel
@@ -66,22 +67,14 @@ def train_step_st(
     latent_actions: jnp.ndarray | None = None,
 ) -> Tuple[TrainState, dict]:
     def loss_fn(params):
-        batch = {"video_tokens": tok_seq, "mask_rng": mask_key}
-        if latent_actions is not None:
-            batch["latent_actions"] = latent_actions
-        outputs = state.apply_fn(
-            {"params": params},
-            batch,
-            training=True,
-            rngs={"dropout": dropout_key},
+        return dynamics_st_loss(
+            state.apply_fn,
+            params,
+            tok_seq,
+            mask_key,
+            dropout_key,
+            latent_actions,
         )
-        mask = outputs["mask"].astype(jnp.float32)
-        logits = outputs["token_logits"]
-        ce = optax.softmax_cross_entropy_with_integer_labels(logits, tok_seq)
-        denom = jnp.maximum(mask.sum(), 1.0)
-        loss = (mask * ce).sum() / denom
-        acc = (mask * (logits.argmax(-1) == tok_seq)).sum() / denom
-        return loss, {"loss": loss, "masked_acc": acc}
 
     (loss, metrics), grads = jax.value_and_grad(loss_fn, has_aux=True)(state.params)
     state = state.apply_gradients(grads=grads)

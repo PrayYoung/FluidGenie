@@ -38,6 +38,7 @@ import tyro
 
 from fluidgenie.data.dataset_npz import NPZSequenceDataset
 from fluidgenie.training.logging_utils import TrainingLogger
+from fluidgenie.training.losses import dynamics_ar_loss
 from fluidgenie.models.vq_tokenizer import VQVAE, VQConfig
 from fluidgenie.models.transformer_dynamics import TransformerDynamics, DynConfig
 
@@ -149,16 +150,15 @@ def make_train_step(model_type: str, mask_token_id: int, mask_ratio_min: float, 
             seq = jnp.concatenate([tok_in, tok_tgt_in], axis=1)  # [B, L_in + L_out]
 
         def loss_fn(params):
-            logits = state.apply_fn({"params": params}, seq, train=True,
-                                    rngs={"dropout": dropout_key})  # [B, L, vocab]
-            logits_tgt = logits[:, L_in:, :]  # [B, L_out, vocab]
-            ce = optax.softmax_cross_entropy_with_integer_labels(logits_tgt, tok_tgt)  # [B, L_out]
-            if model_type == "maskgit":
-                mask_f = mask.astype(ce.dtype)
-                loss = (ce * mask_f).sum() / (mask_f.sum() + 1e-6)
-            else:
-                loss = ce.mean()
-            return loss, {"loss": loss}
+            return dynamics_ar_loss(
+                state.apply_fn,
+                params,
+                seq,
+                tok_tgt,
+                L_in,
+                dropout_key,
+                mask if model_type == "maskgit" else None,
+            )
 
         (loss, metrics), grads = jax.value_and_grad(loss_fn, has_aux=True)(state.params)
         state = state.apply_gradients(grads=grads)
