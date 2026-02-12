@@ -70,6 +70,8 @@ class DemoArgs:
     mask_steps: int = _DYN_MASK_STEPS_DEFAULT
     kv_cache: bool = True
     rollout_view: str = "density"
+    bos_token_id: int = 0
+    rng_seed: int = 0
 
     use_lam: bool = _DYN_USE_LAM_DEFAULT
     lam_ckpt: str = _DYN_LAM_CKPT_DEFAULT
@@ -93,6 +95,7 @@ class EvalCodebookArgs:
     frames: int = 8
     episodes: int = 20
     stats: str = _TOKENIZER_STATS_DEFAULT
+    seed: int = 0
     tokenizer_arch: str = _TOKENIZER_ARCH_DEFAULT
     patch_size: int = _TOKENIZER_PATCH_DEFAULT
     model_dim: int = _TOKENIZER_MODEL_DIM_DEFAULT

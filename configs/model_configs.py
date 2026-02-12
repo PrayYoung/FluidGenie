@@ -61,6 +61,7 @@ class DynamicsConfig:
     mask_ratio_max: float = 0.9
     mask_schedule: str = "cosine"
     mask_steps: int = 8
+    bos_token_id: int = 0
 
     # Optional LAM conditioning for spatial-temporal dynamics
     use_lam: bool = False

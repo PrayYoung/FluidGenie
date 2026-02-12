@@ -36,12 +36,19 @@ def sample_argmax(logits: jnp.ndarray) -> jnp.ndarray:
     return jnp.argmax(logits, axis=-1).astype(jnp.int32)
 
 
-def rollout_tokens_autoregressive(dyn_model, dyn_params, tok_in: jnp.ndarray, L_out: int, vocab: int) -> jnp.ndarray:
+def rollout_tokens_autoregressive(
+    dyn_model,
+    dyn_params,
+    tok_in: jnp.ndarray,
+    L_out: int,
+    vocab: int,
+    bos_token_id: int = 0,
+) -> jnp.ndarray:
     B, L_in = tok_in.shape
     tok_out = jnp.zeros((B, 0), dtype=jnp.int32)
 
     for i in range(L_out):
-        bos = jnp.zeros((B, 1), dtype=jnp.int32)
+        bos = jnp.full((B, 1), bos_token_id, dtype=jnp.int32)
         tok_tgt_in = jnp.concatenate([bos, tok_out], axis=1)  # [B, 1+i]
 
         need = L_out - tok_tgt_in.shape[1]
@@ -58,12 +65,19 @@ def rollout_tokens_autoregressive(dyn_model, dyn_params, tok_in: jnp.ndarray, L_
     return tok_out
 
 
-def rollout_tokens_autoregressive_cached(dyn_model, dyn_params, tok_in: jnp.ndarray, L_out: int) -> jnp.ndarray:
+def rollout_tokens_autoregressive_cached(
+    dyn_model,
+    dyn_params,
+    tok_in: jnp.ndarray,
+    L_out: int,
+    bos_token_id: int = 0,
+    rng_seed: int = 0,
+) -> jnp.ndarray:
     """
     Autoregressive rollout using KV cache (decode=True).
     """
     B, L_in = tok_in.shape
-    rng = jax.random.PRNGKey(0)
+    rng = jax.random.PRNGKey(rng_seed)
     variables = dyn_model.init(rng, jnp.zeros((B, 1), dtype=jnp.int32), train=False, decode=True)
     cache = variables["cache"]
     # reset cache index to 0 because init() advances it by 1
@@ -71,29 +85,51 @@ def rollout_tokens_autoregressive_cached(dyn_model, dyn_params, tok_in: jnp.ndar
     cache_mut["cache_index"] = jnp.array(0)
     cache = freeze(cache_mut)
 
-    # prefill cache with context tokens
-    for i in range(L_in):
-        token = tok_in[:, i:i+1]
-        _, updated = dyn_model.apply({"params": dyn_params, "cache": cache}, token, train=False, decode=True, mutable=["cache"])
-        cache = updated["cache"]
+    # prefill cache with context tokens (scan for compilation)
+    def prefill_step(carry_cache, token_slice):
+        token = token_slice[:, None]
+        _, updated = dyn_model.apply(
+            {"params": dyn_params, "cache": carry_cache},
+            token,
+            train=False,
+            decode=True,
+            mutable=["cache"],
+        )
+        return updated["cache"], None
+
+    cache, _ = jax.lax.scan(prefill_step, cache, tok_in.T)
 
     # BOS token
-    bos = jnp.zeros((B, 1), dtype=jnp.int32)
-    logits, updated = dyn_model.apply({"params": dyn_params, "cache": cache}, bos, train=False, decode=True, mutable=["cache"])
+    bos = jnp.full((B, 1), bos_token_id, dtype=jnp.int32)
+    logits, updated = dyn_model.apply(
+        {"params": dyn_params, "cache": cache},
+        bos,
+        train=False,
+        decode=True,
+        mutable=["cache"],
+    )
     cache = updated["cache"]
 
-    tok_out = []
     next_tok = sample_argmax(logits[:, -1, :])
-    tok_out.append(next_tok)
 
-    for _ in range(1, L_out):
-        token = next_tok[:, None]
-        logits, updated = dyn_model.apply({"params": dyn_params, "cache": cache}, token, train=False, decode=True, mutable=["cache"])
-        cache = updated["cache"]
-        next_tok = sample_argmax(logits[:, -1, :])
-        tok_out.append(next_tok)
+    def gen_step(carry, _):
+        carry_cache, prev_tok = carry
+        token = prev_tok[:, None]
+        logits, updated = dyn_model.apply(
+            {"params": dyn_params, "cache": carry_cache},
+            token,
+            train=False,
+            decode=True,
+            mutable=["cache"],
+        )
+        next_t = sample_argmax(logits[:, -1, :])
+        return (updated["cache"], next_t), next_t
 
-    tok_out = jnp.stack(tok_out, axis=1)
+    if L_out <= 1:
+        return next_tok[:, None]
+
+    (_, _), tok_rest = jax.lax.scan(gen_step, (cache, next_tok), None, length=L_out - 1)
+    tok_out = jnp.concatenate([next_tok[:, None], tok_rest.T], axis=1)
     return tok_out
 
 
@@ -138,6 +174,7 @@ def st_maskgit_rollout_tokens(
     dyn_params,
     tok_ctx: jnp.ndarray,
     mask_steps: int,
+    rng_key: jnp.ndarray,
     latent_actions: jnp.ndarray | None = None,
 ) -> jnp.ndarray:
     """
@@ -151,7 +188,12 @@ def st_maskgit_rollout_tokens(
 
     for step in range(mask_steps):
         tok_seq = jnp.concatenate([tok_ctx, tok_next[:, None]], axis=1)  # [B, T+1, h, w]
-        batch = {"video_tokens": tok_seq, "mask_rng": jax.random.PRNGKey(0), "mask": jnp.concatenate([jnp.zeros_like(tok_ctx, dtype=jnp.bool_), mask[:, None]], axis=1)}
+        step_key, rng_key = jax.random.split(rng_key)
+        batch = {
+            "video_tokens": tok_seq,
+            "mask_rng": step_key,
+            "mask": jnp.concatenate([jnp.zeros_like(tok_ctx, dtype=jnp.bool_), mask[:, None]], axis=1),
+        }
         if latent_actions is not None:
             batch["latent_actions"] = latent_actions
         logits = dyn_model.apply({"params": dyn_params}, batch, training=False)
@@ -225,6 +267,8 @@ def run_rollout(
     lam_num_heads: int = 8,
     lam_dropout: float = 0.0,
     lam_codebook_dropout: float = 0.0,
+    bos_token_id: int = 0,
+    rng_seed: int = 0,
 ) -> None:
     out = ensure_dir(Path(out_dir))
 
@@ -272,7 +316,9 @@ def run_rollout(
     L_out = h_tok * w_tok
     max_len = L_in + L_out
 
+    rng = jax.random.PRNGKey(rng_seed)
     if model_type == "st_maskgit":
+        rng, mask_rng = jax.random.split(rng)
         dyn_model = DynamicsSTMaskGIT(
             model_dim=d_model,
             num_latents=codebook_size,
@@ -286,8 +332,8 @@ def run_rollout(
             [jnp.repeat(tok0[:, None, ...], context, axis=1), tok0[:, None, ...]], axis=1
         )
         dyn_init = dyn_model.init(
-            jax.random.PRNGKey(0),
-            {"video_tokens": tok_seq0, "mask_rng": jax.random.PRNGKey(0)},
+            rng,
+            {"video_tokens": tok_seq0, "mask_rng": mask_rng},
             training=False,
         )["params"]
         dyn_params = from_bytes(dyn_init, Path(dyn_ckpt).read_bytes())
@@ -331,6 +377,7 @@ def run_rollout(
     lam_model = None
     lam_params = None
     if use_lam:
+        rng, lam_rng = jax.random.split(rng)
         if not lam_ckpt:
             raise ValueError("--lam_ckpt is required when use_lam=True")
         lam_model = LatentActionModel(
@@ -345,7 +392,7 @@ def run_rollout(
             codebook_dropout=lam_codebook_dropout,
         )
         lam_init = lam_model.init(
-            jax.random.PRNGKey(0),
+            lam_rng,
             {"videos": jnp.zeros((1, context, H, W, C), dtype=jnp.float32)},
             training=False,
         )["params"]
@@ -371,6 +418,7 @@ def run_rollout(
                 dyn_params,
                 tok_ctx,
                 mask_steps=mask_steps,
+                rng_key=rng,
                 latent_actions=latent_actions,
             )
         else:
@@ -386,9 +434,23 @@ def run_rollout(
                 )
             else:
                 if use_kv_cache:
-                    tok_next_flat = rollout_tokens_autoregressive_cached(dyn_model, dyn_params, tok_in, L_out=L_out)
+                    tok_next_flat = rollout_tokens_autoregressive_cached(
+                        dyn_model,
+                        dyn_params,
+                        tok_in,
+                        L_out=L_out,
+                        bos_token_id=bos_token_id,
+                        rng_seed=rng_seed,
+                    )
                 else:
-                    tok_next_flat = rollout_tokens_autoregressive(dyn_model, dyn_params, tok_in, L_out=L_out, vocab=codebook_size)
+                    tok_next_flat = rollout_tokens_autoregressive(
+                        dyn_model,
+                        dyn_params,
+                        tok_in,
+                        L_out=L_out,
+                        vocab=codebook_size,
+                        bos_token_id=bos_token_id,
+                    )
             tok_next = unflatten_grid(tok_next_flat)
 
         if tokenizer_arch == "st":

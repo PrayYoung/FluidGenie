@@ -108,7 +108,14 @@ def make_causal_mask(L: int) -> jnp.ndarray:
     return m[None, None, :, :]
 
 
-def make_train_step(model_type: str, mask_token_id: int, mask_ratio_min: float, mask_ratio_max: float, mask_schedule: str):
+def make_train_step(
+    model_type: str,
+    mask_token_id: int,
+    mask_ratio_min: float,
+    mask_ratio_max: float,
+    mask_schedule: str,
+    bos_token_id: int,
+):
     @jax.jit
     def _train_step(state: TrainState, tok_in: jnp.ndarray, tok_tgt: jnp.ndarray, dropout_key: jnp.ndarray, mask_key: jnp.ndarray) -> Tuple[TrainState, dict]:
         """
@@ -123,8 +130,8 @@ def make_train_step(model_type: str, mask_token_id: int, mask_ratio_min: float, 
         L_in = tok_in.shape[1]
         L_out = tok_tgt.shape[1]
 
-        # teacher forcing: shift target right with BOS token 0 (assume token ids start at 0)
-        bos = jnp.zeros((B, 1), dtype=jnp.int32)
+        # teacher forcing: shift target right with BOS token (assume token ids start at 0)
+        bos = jnp.full((B, 1), bos_token_id, dtype=jnp.int32)
         tok_tgt_in = jnp.concatenate([bos, tok_tgt[:, :-1]], axis=1)  # [B, L_out]
 
         if model_type == "maskgit":
@@ -245,6 +252,7 @@ def main():
         mask_ratio_min=args.mask_ratio_min,
         mask_ratio_max=args.mask_ratio_max,
         mask_schedule=args.mask_schedule,
+        bos_token_id=args.bos_token_id,
     )
 
     # Train loop

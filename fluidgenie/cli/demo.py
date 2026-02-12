@@ -100,6 +100,8 @@ def main():
         num_heads=args.num_heads,
         tokenizer_dropout=args.dropout,
         codebook_dropout=args.codebook_dropout,
+        bos_token_id=args.bos_token_id,
+        rng_seed=args.rng_seed,
         use_lam=args.use_lam,
         lam_ckpt=args.lam_ckpt,
         lam_model_dim=args.lam_model_dim,

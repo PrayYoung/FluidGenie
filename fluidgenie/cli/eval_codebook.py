@@ -25,7 +25,7 @@ def main():
     sample = np.load(files[0])["fields"][0]
     H, W, C = sample.shape
 
-    rng = jax.random.PRNGKey(0)
+    rng = jax.random.PRNGKey(args.seed)
     if args.tokenizer_arch == "st":
         vq_model = TokenizerSTVQVAE(
             in_dim=C,
