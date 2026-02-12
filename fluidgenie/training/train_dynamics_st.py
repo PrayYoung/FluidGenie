@@ -4,7 +4,7 @@ Train spatial-temporal MaskGIT dynamics (ST pipeline).
 Run:
   uv run python -m fluidgenie.training.train_dynamics_st \
     --data data/ns2d \
-    --vq-ckpt runs/vq/latest.ckpt \
+    --vq-ckpt runs/vq/latest \
     --out runs/dyn_st \
     --use-lam False
 """
@@ -19,7 +19,6 @@ import jax
 import jax.numpy as jnp
 import optax
 from flax.training import train_state
-from flax.serialization import from_bytes, to_bytes
 from tqdm import trange
 import tyro
 
@@ -27,6 +26,7 @@ from configs.model_configs import DynamicsConfig
 from fluidgenie.data.dataset_npz import NPZSequenceDataset
 from fluidgenie.training.logging_utils import TrainingLogger
 from fluidgenie.training.losses import dynamics_st_loss
+from fluidgenie.training.checkpoint_utils import save_params, load_params
 from fluidgenie.models.vq_tokenizer import VQVAE, VQConfig
 from fluidgenie.models.dynamics_st import DynamicsSTMaskGIT
 from fluidgenie.models.lam import LatentActionModel
@@ -100,7 +100,7 @@ def main():
     vq_cfg = VQConfig(codebook_size=args.codebook, embed_dim=args.embed, hidden=args.hidden)
     vq_model = VQVAE(vq_cfg, in_channels=C)
     vq_init = vq_model.init(rng, jnp.zeros((1, H, W, C), dtype=jnp.float32))["params"]
-    vq_params = from_bytes(vq_init, Path(args.vq_ckpt).read_bytes())
+    vq_params = load_params(args.vq_ckpt, vq_init)
 
     def _vq_encode_to_tokens(vq_params, x: jnp.ndarray) -> jnp.ndarray:
         _x_rec, tok, _commit, _cb = vq_model.apply({"params": vq_params}, x)
@@ -130,7 +130,7 @@ def main():
             {"videos": jnp.zeros((1, args.context + 1, H, W, C), dtype=jnp.float32)},
             training=False,
         )["params"]
-        lam_params = from_bytes(lam_init, Path(args.lam_ckpt).read_bytes())
+        lam_params = load_params(args.lam_ckpt, lam_init)
 
         def _lam_encode(params, x_seq: jnp.ndarray) -> jnp.ndarray:
             out = lam_model.apply(
@@ -186,11 +186,11 @@ def main():
             logger.log(step, metrics, prefix="train")
 
         if step % 1000 == 0 and step > 0:
-            (out / f"step_{step:06d}.ckpt").write_bytes(to_bytes(state.params))
-            (out / "latest.ckpt").write_bytes(to_bytes(state.params))
+            save_params(out, f"step_{step:06d}", state.params)
+            save_params(out, "latest", state.params)
 
-    (out / "final.ckpt").write_bytes(to_bytes(state.params))
-    (out / "latest.ckpt").write_bytes(to_bytes(state.params))
+    save_params(out, "final", state.params)
+    save_params(out, "latest", state.params)
     logger.close()
     print("Saved ST dynamics to", out)
 

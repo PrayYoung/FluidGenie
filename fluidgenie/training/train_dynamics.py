@@ -11,7 +11,7 @@ This script:
 Run (example):
   uv run python -m fluidgenie.training.train_dynamics \
     --data data/ns2d \
-    --vq_ckpt runs/vq/latest.ckpt \
+    --vq_ckpt runs/vq/latest \
     --out runs/dyn \
     --steps 20000 \
     --batch 4 \
@@ -31,7 +31,6 @@ import jax.numpy as jnp
 import optax
 from flax import linen as nn
 from flax.training import train_state
-from flax.serialization import from_bytes, to_bytes
 from tqdm import trange
 from einops import rearrange
 import tyro
@@ -39,6 +38,7 @@ import tyro
 from fluidgenie.data.dataset_npz import NPZSequenceDataset
 from fluidgenie.training.logging_utils import TrainingLogger
 from fluidgenie.training.losses import dynamics_ar_loss
+from fluidgenie.training.checkpoint_utils import save_params, load_params
 from fluidgenie.models.vq_tokenizer import VQVAE, VQConfig
 from fluidgenie.models.transformer_dynamics import TransformerDynamics, DynConfig
 
@@ -200,7 +200,7 @@ def main():
     vq_cfg = VQConfig(codebook_size=args.codebook, embed_dim=args.embed, hidden=args.hidden)
     vq_model = VQVAE(vq_cfg, in_channels=C)
     vq_init = vq_model.init(rng, jnp.zeros((1, H, W, C), dtype=jnp.float32))["params"]
-    vq_params = from_bytes(vq_init, Path(args.vq_ckpt).read_bytes())
+    vq_params = load_params(args.vq_ckpt, vq_init)
 
     # JIT encoder with model closed over (avoid passing Python objects into JIT)
     def _vq_encode_to_tokens(vq_params, x: jnp.ndarray) -> jnp.ndarray:
@@ -275,11 +275,11 @@ def main():
             logger.log(step, metrics, prefix="train")
 
         if step % 1000 == 0 and step > 0:
-            (out / f"step_{step:06d}.ckpt").write_bytes(to_bytes(state.params))
-            (out / "latest.ckpt").write_bytes(to_bytes(state.params))
+            save_params(out, f"step_{step:06d}", state.params)
+            save_params(out, "latest", state.params)
 
-    (out / "final.ckpt").write_bytes(to_bytes(state.params))
-    (out / "latest.ckpt").write_bytes(to_bytes(state.params))
+    save_params(out, "final", state.params)
+    save_params(out, "latest", state.params)
     logger.close()
     print("Saved dynamics to", out)
     print(f"Token grid: {h_tok}x{w_tok}, L_in={L_in}, L_out={L_out}, max_len={max_len}")

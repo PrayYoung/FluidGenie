@@ -69,7 +69,7 @@ Dynamics Training
 ```bash
 uv run python -m fluidgenie.training.train_dynamics \
   --data data/ns2d \
-  --vq-ckpt runs/vq/latest.ckpt \
+  --vq-ckpt runs/vq/latest \
   --out runs/dyn \
   --model transformer
 ```
@@ -78,7 +78,7 @@ MaskGIT variant:
 ```bash
 uv run python -m fluidgenie.training.train_dynamics \
   --data data/ns2d \
-  --vq-ckpt runs/vq/latest.ckpt \
+  --vq-ckpt runs/vq/latest \
   --out runs/dyn_maskgit \
   --model maskgit
 ```
@@ -87,7 +87,7 @@ uv run python -m fluidgenie.training.train_dynamics \
 ```bash
 uv run python -m fluidgenie.training.train_dynamics_st \
   --data data/ns2d \
-  --vq-ckpt runs/vq_st/latest.ckpt \
+  --vq-ckpt runs/vq_st/latest \
   --out runs/dyn_st \
   --model st_maskgit
 ```
@@ -96,11 +96,11 @@ With LAM conditioning:
 ```bash
 uv run python -m fluidgenie.training.train_dynamics_st \
   --data data/ns2d \
-  --vq-ckpt runs/vq_st/latest.ckpt \
+  --vq-ckpt runs/vq_st/latest \
   --out runs/dyn_st_lam \
   --model st_maskgit \
   --use-lam True \
-  --lam-ckpt runs/lam/latest.ckpt
+  --lam-ckpt runs/lam/latest
 ```
 
 Evaluation / Demo
@@ -111,7 +111,7 @@ Tokenizer recon:
 uv run python -m fluidgenie.cli.demo \
   --mode tokenizer \
   --npz data/ns2d/episode_000000.npz \
-  --vq-ckpt runs/vq/latest.ckpt \
+  --vq-ckpt runs/vq/latest \
   --out demo/tokenizer \
   --view density
 ```
@@ -121,8 +121,8 @@ Rollout (AR):
 uv run python -m fluidgenie.cli.demo \
   --mode rollout \
   --npz data/ns2d/episode_000000.npz \
-  --vq-ckpt runs/vq/latest.ckpt \
-  --dyn-ckpt runs/dyn/latest.ckpt \
+  --vq-ckpt runs/vq/latest \
+  --dyn-ckpt runs/dyn/latest \
   --out demo/rollout \
   --model transformer
 ```
@@ -132,8 +132,8 @@ Rollout (ST-MaskGIT + ST tokenizer):
 uv run python -m fluidgenie.cli.demo \
   --mode rollout \
   --npz data/ns2d/episode_000000.npz \
-  --vq-ckpt runs/vq_st/latest.ckpt \
-  --dyn-ckpt runs/dyn_st/latest.ckpt \
+  --vq-ckpt runs/vq_st/latest \
+  --dyn-ckpt runs/dyn_st/latest \
   --out demo/rollout_st \
   --model st_maskgit \
   --tokenizer-arch st
@@ -143,7 +143,7 @@ Codebook usage (collapse check):
 ```bash
 uv run python -m fluidgenie.cli.eval_codebook \
   --data data/ns2d \
-  --vq-ckpt runs/vq/latest.ckpt
+  --vq-ckpt runs/vq/latest
 ```
 
 Notes

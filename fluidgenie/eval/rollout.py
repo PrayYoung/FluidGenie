@@ -11,7 +11,6 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from flax.core import freeze, unfreeze
-from flax.serialization import from_bytes
 
 try:
     import imageio.v2 as imageio
@@ -33,6 +32,7 @@ from fluidgenie.eval.utils import (
     vq_decode_tokens,
     st_decode_tokens,
 )
+from fluidgenie.training.checkpoint_utils import load_params
 from tqdm import tqdm
 
 
@@ -349,7 +349,7 @@ def run_rollout(
             {"video_tokens": tok_seq0, "mask_rng": mask_rng},
             training=False,
         )["params"]
-        dyn_params = from_bytes(dyn_init, Path(dyn_ckpt).read_bytes())
+        dyn_params = load_params(dyn_ckpt, dyn_init)
     else:
         vocab_size = codebook_size + (1 if model_type == "maskgit" else 0)
         dyn_cfg = DynConfig(
@@ -401,7 +401,7 @@ def run_rollout(
             {"videos": jnp.zeros((1, context, H, W, C), dtype=jnp.float32)},
             training=False,
         )["params"]
-        lam_params = from_bytes(lam_init, Path(lam_ckpt).read_bytes())
+        lam_params = load_params(lam_ckpt, lam_init)
 
     ctx_frames_dyn = fields[start : start + context]  # [context,H,W,C]
     if mean is not None:

@@ -18,7 +18,6 @@ import jax
 import jax.numpy as jnp
 import optax
 from flax.training import train_state
-from flax.serialization import to_bytes
 from tqdm import trange
 import tyro
 
@@ -26,6 +25,7 @@ from configs.model_configs import TokenizerConfig
 from fluidgenie.data.dataset_npz import NPZSequenceDataset
 from fluidgenie.training.logging_utils import TrainingLogger
 from fluidgenie.training.losses import tokenizer_st_loss
+from fluidgenie.training.checkpoint_utils import save_params
 from fluidgenie.models.tokenizer_st import TokenizerSTVQVAE
 
 
@@ -108,11 +108,11 @@ def main():
             logger.log(step, metrics, prefix="train")
 
         if step % 1000 == 0 and step > 0:
-            (out / f"step_{step:06d}.ckpt").write_bytes(to_bytes(state.params))
-            (out / "latest.ckpt").write_bytes(to_bytes(state.params))
+            save_params(out, f"step_{step:06d}", state.params)
+            save_params(out, "latest", state.params)
 
-    (out / "final.ckpt").write_bytes(to_bytes(state.params))
-    (out / "latest.ckpt").write_bytes(to_bytes(state.params))
+    save_params(out, "final", state.params)
+    save_params(out, "latest", state.params)
     logger.close()
     print("Saved ST tokenizer to", out)
 

@@ -11,7 +11,7 @@ Examples:
 uv run python -m fluidgenie.cli.demo \
   --mode tokenizer \
   --npz data/ns2d/episode_000000.npz \
-  --vq_ckpt runs/vq/latest.ckpt \
+  --vq_ckpt runs/vq/latest \
   --out demo/tokenizer \
   --frame 0 \
   --codebook 512 --embed 64 --hidden 128
@@ -20,8 +20,8 @@ uv run python -m fluidgenie.cli.demo \
 uv run python -m fluidgenie.cli.demo \
   --mode rollout \
   --npz data/ns2d/episode_000000.npz \
-  --vq_ckpt runs/vq/latest.ckpt \
-  --dyn_ckpt runs/dyn/latest.ckpt \
+  --vq_ckpt runs/vq/latest \
+  --dyn_ckpt runs/dyn/latest \
   --out demo/rollout \
   --start 0 --horizon 60 --context 2 \
   --codebook 512 --embed 64 --hidden 128 \

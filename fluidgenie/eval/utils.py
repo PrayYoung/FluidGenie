@@ -6,7 +6,7 @@ from typing import Tuple
 import numpy as np
 import jax
 import jax.numpy as jnp
-from flax.serialization import from_bytes
+from fluidgenie.training.checkpoint_utils import load_params
 
 from fluidgenie.models.vq_tokenizer import VQVAE, VQConfig, Decoder
 from fluidgenie.models.transformer_dynamics import TransformerDynamics, DynConfig
@@ -63,7 +63,7 @@ def load_tokenizer_params(
     else:
         model = VQVAE(vq_cfg, in_channels=in_channels)
         params_init = model.init(rng, jnp.zeros((1, H, W, in_channels), dtype=jnp.float32))["params"]
-    params = from_bytes(params_init, Path(ckpt_path).read_bytes())
+    params = load_params(ckpt_path, params_init)
     return model, params
 
 
@@ -71,7 +71,7 @@ def load_dyn_params(dyn_cfg: DynConfig, max_len: int, ckpt_path: str, seed: int 
     model = TransformerDynamics(dyn_cfg)
     rng = jax.random.PRNGKey(seed)
     params_init = model.init(rng, jnp.zeros((1, max_len), dtype=jnp.int32), train=False)["params"]
-    params = from_bytes(params_init, Path(ckpt_path).read_bytes())
+    params = load_params(ckpt_path, params_init)
     return model, params
 
 

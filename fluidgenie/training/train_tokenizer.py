@@ -22,12 +22,12 @@ import jax
 import jax.numpy as jnp
 import optax
 from flax.training import train_state
-from flax.serialization import to_bytes
 from tqdm import trange
 
 from fluidgenie.data.dataset_npz import NPZSequenceDataset
 from fluidgenie.training.logging_utils import TrainingLogger
 from fluidgenie.training.losses import tokenizer_conv_loss
+from fluidgenie.training.checkpoint_utils import save_params
 from fluidgenie.models.vq_tokenizer import VQVAE, VQConfig
 import tyro
 
@@ -131,9 +131,8 @@ def main():
             logger.log(step, metrics, prefix="train")
 
         if step % 1000 == 0 and step > 0:
-            ckpt = out / f"step_{step:06d}.ckpt"
-            ckpt.write_bytes(to_bytes(state.params))
-            (out / "latest.ckpt").write_bytes(to_bytes(state.params))
+            save_params(out, f"step_{step:06d}", state.params)
+            save_params(out, "latest", state.params)
 
         # quick recon snapshot
         if step % 500 == 0:
@@ -150,7 +149,7 @@ def main():
             np.save(snap / f"rec_{step:06d}.npy", x_rec_np)
 
     # Save final
-    (out / "final.ckpt").write_bytes(to_bytes(state.params))
+    save_params(out, "final", state.params)
     logger.close()
     print("Saved tokenizer to", out)
 

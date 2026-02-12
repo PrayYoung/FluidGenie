@@ -7,11 +7,11 @@ from pathlib import Path
 import numpy as np
 import jax
 import jax.numpy as jnp
-from flax.serialization import from_bytes
 import tyro
 
 from fluidgenie.models.vq_tokenizer import VQVAE, VQConfig
 from fluidgenie.models.tokenizer_st import TokenizerSTVQVAE
+from fluidgenie.training.checkpoint_utils import load_params
 from configs.eval_configs import EvalCodebookArgs
 
 
@@ -47,7 +47,7 @@ def main():
         vq_cfg = VQConfig(codebook_size=args.codebook, embed_dim=args.embed, hidden=args.hidden)
         vq_model = VQVAE(vq_cfg, in_channels=C)
         init_params = vq_model.init(rng, jnp.zeros((1, H, W, C), dtype=jnp.float32))["params"]
-    vq_params = from_bytes(init_params, Path(args.vq_ckpt).read_bytes())
+    vq_params = load_params(args.vq_ckpt, init_params)
 
     if args.stats:
         stats = np.load(args.stats)
