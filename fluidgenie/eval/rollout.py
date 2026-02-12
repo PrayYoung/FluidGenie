@@ -6,6 +6,9 @@ from typing import Optional
 import numpy as np
 import jax
 import jax.numpy as jnp
+import matplotlib
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from flax.core import freeze, unfreeze
 from flax.serialization import from_bytes
@@ -30,10 +33,22 @@ from fluidgenie.eval.utils import (
     vq_decode_tokens,
     st_decode_tokens,
 )
+from tqdm import tqdm
 
 
 def sample_argmax(logits: jnp.ndarray) -> jnp.ndarray:
     return jnp.argmax(logits, axis=-1).astype(jnp.int32)
+
+
+def encode_context_tokens(vq_encode_tokens, vq_params, ctx_frames: np.ndarray, mean, std) -> jnp.ndarray:
+    # ctx_frames: [context,H,W,C] -> [1,context,h,w]
+    x = ctx_frames.astype(np.float32)
+    if mean is not None:
+        x = (x - mean) / (std + 1e-6)
+    x = jnp.array(x, dtype=jnp.float32)
+    # vmap over time dimension
+    tok = jax.vmap(lambda f: vq_encode_tokens(vq_params, f[None, ...])[0])(x)
+    return tok[None, ...]
 
 
 def rollout_tokens_autoregressive(
@@ -143,9 +158,8 @@ def maskgit_rollout_tokens(
     mask_steps: int,
 ) -> jnp.ndarray:
     B, L_in = tok_in.shape
-    tok_out = jnp.full((B, L_out), mask_token_id, dtype=jnp.int32)
 
-    for step in range(mask_steps):
+    def step_fn(tok_out, step):
         seq = jnp.concatenate([tok_in, tok_out], axis=1)
         logits = dyn_model.apply({"params": dyn_params}, seq, train=False)
         logits_tgt = logits[:, L_in:, :]
@@ -159,13 +173,15 @@ def maskgit_rollout_tokens(
         k = jnp.maximum(1, jnp.floor(ratio * L_out).astype(jnp.int32))
 
         def update_one(conf_row, pred_row, tok_row):
-            idx = jnp.argsort(conf_row)[::-1]
-            keep = idx[:k]
+            _, keep = jax.lax.top_k(conf_row, k)
             tok_row = tok_row.at[keep].set(pred_row[keep])
             return tok_row
 
         tok_out = jax.vmap(update_one)(conf, pred, tok_out)
+        return tok_out, None
 
+    tok_init = jnp.full((B, L_out), mask_token_id, dtype=jnp.int32)
+    tok_out, _ = jax.lax.scan(step_fn, tok_init, jnp.arange(mask_steps))
     return tok_out
 
 
@@ -207,24 +223,21 @@ def st_maskgit_rollout_tokens(
         k = jnp.maximum(1, jnp.floor(ratio * n).astype(jnp.int32))
 
         def update_one(conf_row, pred_row, tok_row):
-            idx = jnp.argsort(conf_row)[::-1]
-            keep = idx[:k]
+            _, keep = jax.lax.top_k(conf_row, k)
             tok_row = tok_row.at[keep].set(pred_row[keep])
-            return tok_row
+            return tok_row, keep
 
         tok_next_flat = tok_next.reshape(b, n)
-        tok_next_flat = jax.vmap(update_one)(conf, pred, tok_next_flat)
+        tok_next_flat, keep_idx = jax.vmap(update_one)(conf, pred, tok_next_flat)
         tok_next = tok_next_flat.reshape(b, h, w)
 
         # update mask: keep top-k, mask the rest
-        def update_mask(conf_row):
-            idx = jnp.argsort(conf_row)[::-1]
-            keep = idx[:k]
+        def update_mask(keep):
             m = jnp.ones((n,), dtype=jnp.bool_)
             m = m.at[keep].set(False)
             return m
 
-        mask_flat = jax.vmap(update_mask)(conf)
+        mask_flat = jax.vmap(update_mask)(keep_idx)
         mask = mask_flat.reshape(b, h, w)
 
     return tok_next
@@ -356,13 +369,7 @@ def run_rollout(
         dec_params = None
 
     ctx_frames = fields[start : start + context]  # [context,H,W,C]
-    ctx_tok_list = []
-    for t in range(context):
-        xt = jnp.array(ctx_frames[t][None, ...], dtype=jnp.float32)
-        if mean is not None:
-            xt = (xt - mean) / (std + 1e-6)
-        ctx_tok_list.append(vq_encode_tokens(vq_params, xt)[0])  # [h,w]
-    ctx_tok = jnp.stack(ctx_tok_list, axis=0)[None, ...]  # [1,context,h,w]
+    ctx_tok = encode_context_tokens(vq_encode_tokens, vq_params, ctx_frames, mean, std)
 
     def flatten_ctx(tok_ctx: jnp.ndarray) -> jnp.ndarray:
         return tok_ctx.reshape((tok_ctx.shape[0], -1))
@@ -370,10 +377,8 @@ def run_rollout(
     def unflatten_grid(tok_flat: jnp.ndarray) -> jnp.ndarray:
         return tok_flat.reshape((tok_flat.shape[0], h_tok, w_tok))
 
-    preds = []
     gt = fields[start + context : start + context + horizon]  # [horizon,H,W,C]
 
-    tok_ctx = ctx_tok
     lam_model = None
     lam_params = None
     if use_lam:
@@ -401,7 +406,8 @@ def run_rollout(
     ctx_frames_dyn = fields[start : start + context]  # [context,H,W,C]
     if mean is not None:
         ctx_frames_dyn = (ctx_frames_dyn - mean) / (std + 1e-6)
-    for k in range(horizon):
+
+    def rollout_step(tok_ctx, _):
         tok_in = flatten_ctx(tok_ctx).astype(jnp.int32)
         if model_type == "st_maskgit":
             latent_actions = None
@@ -433,42 +439,50 @@ def run_rollout(
                     mask_steps=mask_steps,
                 )
             else:
-                if use_kv_cache:
-                    tok_next_flat = rollout_tokens_autoregressive_cached(
-                        dyn_model,
-                        dyn_params,
-                        tok_in,
-                        L_out=L_out,
-                        bos_token_id=bos_token_id,
-                        rng_seed=rng_seed,
-                    )
-                else:
-                    tok_next_flat = rollout_tokens_autoregressive(
-                        dyn_model,
-                        dyn_params,
-                        tok_in,
-                        L_out=L_out,
-                        vocab=codebook_size,
-                        bos_token_id=bos_token_id,
-                    )
+                tok_next_flat = rollout_tokens_autoregressive(
+                    dyn_model,
+                    dyn_params,
+                    tok_in,
+                    L_out=L_out,
+                    vocab=codebook_size,
+                    bos_token_id=bos_token_id,
+                )
             tok_next = unflatten_grid(tok_next_flat)
 
+        new_tok_ctx = jnp.concatenate([tok_ctx[:, 1:], tok_next[:, None, :, :]], axis=1)
+        return new_tok_ctx, tok_next
+
+    # If using KV cache, fall back to Python loop (not JIT-friendly).
+    if model_type == "transformer" and use_kv_cache:
+        tok_ctx = ctx_tok
+        tok_preds = []
+        for _ in tqdm(range(horizon), desc="rollout"):
+            tok_in = flatten_ctx(tok_ctx).astype(jnp.int32)
+            tok_next_flat = rollout_tokens_autoregressive_cached(
+                dyn_model,
+                dyn_params,
+                tok_in,
+                L_out=L_out,
+                bos_token_id=bos_token_id,
+                rng_seed=rng_seed,
+            )
+            tok_next = unflatten_grid(tok_next_flat)
+            tok_preds.append(tok_next[0])
+            tok_ctx = jnp.concatenate([tok_ctx[:, 1:], tok_next[:, None, :, :]], axis=1)
+        tok_preds = jnp.stack(tok_preds, axis=0)
+    else:
+        _, tok_preds = jax.jit(lambda tc: jax.lax.scan(rollout_step, tc, None, length=horizon))(ctx_tok)
+
+    preds = []
+    for k in tqdm(range(horizon), desc="decode"):
+        tok_next = tok_preds[k][None, ...]
         if tokenizer_arch == "st":
             x_hat = st_decode_tokens(vq_model, vq_params, tok_next, (H, W))
         else:
             x_hat = vq_decode_tokens(vq_cfg, dec_params, codebook, tok_next, out_channels=C)
         if mean is not None:
-            x_hat_denorm = x_hat * (std + 1e-6) + mean
-        else:
-            x_hat_denorm = x_hat
-        preds.append(np.array(x_hat_denorm[0]))
-
-        tok_ctx = jnp.concatenate([tok_ctx[:, 1:], tok_next[:, None, :, :]], axis=1)
-        if mean is not None:
-            x_hat_norm = (np.array(x_hat_denorm[0]) - mean[0, 0, 0]) / (std[0, 0, 0] + 1e-6)
-        else:
-            x_hat_norm = np.array(x_hat_denorm[0])
-        ctx_frames_dyn = np.concatenate([ctx_frames_dyn[1:], x_hat_norm[None, ...]], axis=0)
+            x_hat = x_hat * (std + 1e-6) + mean
+        preds.append(np.array(x_hat[0]))
 
     preds = np.stack(preds, axis=0)
 
