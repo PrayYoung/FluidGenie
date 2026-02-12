@@ -1,41 +1,69 @@
-FluidGenie
-==========
+🌊 **FluidGenie**
+============
 
-Token-based fluid dynamics modeling with two pipelines:
+[![JAX](https://img.shields.io/badge/JAX-0.4.20+-blue.svg)](https://github.com/google/jax)
+[![FLAX](https://img.shields.io/badge/Flax-0.10.7+-blue.svg)](https://github.com/google/flax)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-1) **Conv VQ + AR/MaskGIT dynamics** (original pipeline)
-2) **ST-VQ + ST-MaskGIT + optional LAM** (Jafar-style pipeline)
+**FluidGenie** is a high performance, token-based generative framework for modeling complex spatiotemporal physical systems (fluid dynamics) using **JAX/Flax**, inspired by Google's **Genie** (https://arxiv.org/abs/2402.15391).
 
-This repo uses `tyro` for CLI configs and `uv` for running.
+By unifying Vision Transformer (ViT) and Large Language Model (LLM) paradigms, FluidGenie compresses continuous fluid simulation into discrete token grids and models their physical evolution using advanced autoregressive and non-autoregressive (MaskGIT) sequence modeling.
 
-Setup
------
+## ⭐ Key Highlights
+- Dual state‑of‑the‑art pipelines:
+  - Standard pipeline (Conv VQ + AR/MaskGIT)
+  - ST pipeline (ST‑VQ + ST‑MaskGIT, optional LAM)
+- Hardware‑accelerated engineering on JAX/Flax (GPU/TPU‑friendly)
+- Physical fidelity validation via vorticity/gradient losses and visual diagnostics
+- End‑to‑end simulation pipeline: data → tokenize → dynamics → rollout
+
+---
+
+## What You Get
+- **Conv VQ + AR/MaskGIT** (stable baseline)
+- **ST‑VQ + ST‑MaskGIT + optional LAM** (Jafar‑style)
+- **PhiFlow** NS2D data generator
+- **Rollout + visualization** with GIFs
+- **Orbax checkpoints** (directory format, still compatible with old `.ckpt` files)
+
+---
+
+## Quick Start (Minimal)
 ```bash
 uv sync
-```
 
-Data Generation (PhiFlow)
--------------------------
-```bash
+# 1) Generate data
 uv run python -m fluidgenie.data.gen_phiflow_ns2d \
   --out data/ns2d \
-  --episodes 200 \
-  --steps 200 \
-  --res 128 \
-  --density 1
-```
+  --episodes 50 \
+  --steps 120
 
-Optional normalization stats:
-```bash
-uv run python -m fluidgenie.data.compute_stats \
+# 2) Train tokenizer (Conv VQ)
+uv run python -m fluidgenie.training.train_tokenizer \
   --data data/ns2d \
-  --out data/ns2d_stats.npz
+  --out runs/vq
+
+# 3) Train dynamics (AR)
+uv run python -m fluidgenie.training.train_dynamics \
+  --data data/ns2d \
+  --vq-ckpt runs/vq/latest \
+  --out runs/dyn \
+  --model transformer
+
+# 4) Rollout
+uv run python -m fluidgenie.cli.demo \
+  --mode rollout \
+  --npz data/ns2d/episode_000000.npz \
+  --vq-ckpt runs/vq/latest \
+  --dyn-ckpt runs/dyn/latest \
+  --out demo/rollout
 ```
 
-Tokenizer Training
-------------------
+---
 
-### A) Conv VQ (original)
+## Pipeline A: Conv VQ + AR/MaskGIT
+
+### Tokenizer
 ```bash
 uv run python -m fluidgenie.training.train_tokenizer \
   --data data/ns2d \
@@ -43,29 +71,7 @@ uv run python -m fluidgenie.training.train_tokenizer \
   --stats data/ns2d_stats.npz
 ```
 
-### B) ST VQ (Jafar-style)
-```bash
-uv run python -m fluidgenie.training.train_tokenizer_st \
-  --data data/ns2d \
-  --out runs/vq_st \
-  --seq-len 4 \
-  --stats data/ns2d_stats.npz
-```
-
-LAM Training (optional)
------------------------
-```bash
-uv run python -m fluidgenie.training.train_lam \
-  --data data/ns2d \
-  --out runs/lam \
-  --seq-len 8 \
-  --stats data/ns2d_stats.npz
-```
-
-Dynamics Training
------------------
-
-### A) AR / MaskGIT (original pipeline)
+### Dynamics (AR)
 ```bash
 uv run python -m fluidgenie.training.train_dynamics \
   --data data/ns2d \
@@ -74,7 +80,7 @@ uv run python -m fluidgenie.training.train_dynamics \
   --model transformer
 ```
 
-MaskGIT variant:
+### Dynamics (MaskGIT)
 ```bash
 uv run python -m fluidgenie.training.train_dynamics \
   --data data/ns2d \
@@ -83,7 +89,19 @@ uv run python -m fluidgenie.training.train_dynamics \
   --model maskgit
 ```
 
-### B) ST-MaskGIT (Jafar-style)
+---
+
+## Pipeline B: ST‑VQ + ST‑MaskGIT (+ LAM)
+
+### ST Tokenizer
+```bash
+uv run python -m fluidgenie.training.train_tokenizer_st \
+  --data data/ns2d \
+  --out runs/vq_st \
+  --seq-len 4
+```
+
+### ST Dynamics
 ```bash
 uv run python -m fluidgenie.training.train_dynamics_st \
   --data data/ns2d \
@@ -92,7 +110,15 @@ uv run python -m fluidgenie.training.train_dynamics_st \
   --model st_maskgit
 ```
 
-With LAM conditioning:
+### Optional LAM
+```bash
+uv run python -m fluidgenie.training.train_lam \
+  --data data/ns2d \
+  --out runs/lam \
+  --seq-len 8
+```
+
+### ST Dynamics + LAM
 ```bash
 uv run python -m fluidgenie.training.train_dynamics_st \
   --data data/ns2d \
@@ -103,10 +129,11 @@ uv run python -m fluidgenie.training.train_dynamics_st \
   --lam-ckpt runs/lam/latest
 ```
 
-Evaluation / Demo
------------------
+---
 
-Tokenizer recon:
+## Visualization & Eval
+
+### Tokenizer Recon
 ```bash
 uv run python -m fluidgenie.cli.demo \
   --mode tokenizer \
@@ -116,18 +143,7 @@ uv run python -m fluidgenie.cli.demo \
   --view density
 ```
 
-Rollout (AR):
-```bash
-uv run python -m fluidgenie.cli.demo \
-  --mode rollout \
-  --npz data/ns2d/episode_000000.npz \
-  --vq-ckpt runs/vq/latest \
-  --dyn-ckpt runs/dyn/latest \
-  --out demo/rollout \
-  --model transformer
-```
-
-Rollout (ST-MaskGIT + ST tokenizer):
+### Rollout (ST‑MaskGIT)
 ```bash
 uv run python -m fluidgenie.cli.demo \
   --mode rollout \
@@ -139,15 +155,32 @@ uv run python -m fluidgenie.cli.demo \
   --tokenizer-arch st
 ```
 
-Codebook usage (collapse check):
+### Codebook Usage (collapse check)
 ```bash
 uv run python -m fluidgenie.cli.eval_codebook \
   --data data/ns2d \
   --vq-ckpt runs/vq/latest
 ```
 
-Notes
------
+---
+
+## Optional: Normalization Stats
+```bash
+uv run python -m fluidgenie.data.compute_stats \
+  --data data/ns2d \
+  --out data/ns2d_stats.npz
+```
+
+---
+
+## Perf Tips
+- Add async prefetch in training:
+  - `--prefetch-batches 4 --prefetch-workers 1`
+- For large rollouts, prefer `--model st_maskgit` to avoid slow AR decode.
+
+---
+
+## Notes
 - `tokenizer-arch` can be `conv` or `st`.
-- For ST-MaskGIT, the dynamics model runs spatial-temporal attention on patch tokens.
-- LAM conditioning is optional and only used when `use-lam=True` and `lam-ckpt` is provided.
+- Checkpoints are saved as **directories** with Orbax (e.g. `runs/vq/latest`).
+- Old `.ckpt` files are still loadable.
