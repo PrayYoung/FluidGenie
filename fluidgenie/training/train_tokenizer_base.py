@@ -106,15 +106,15 @@ def main():
         embed_dim=args.embed,
         hidden=args.hidden,
     )
-    model = VQVAE(cfg, in_channels=C)
+    base_tokenizer_model = VQVAE(cfg, in_channels=C)
 
     # Init
     batch0 = next(loader)
-    params = model.init(rng, jnp.array(batch0))["params"]
+    base_tokenizer_params = base_tokenizer_model.init(rng, jnp.array(batch0))["params"]
 
     state = TrainState.create(
-        apply_fn=model.apply,
-        params=params,
+        apply_fn=base_tokenizer_model.apply,
+        params=base_tokenizer_params,
         tx=optax.adam(args.lr),
     )
 
@@ -139,7 +139,7 @@ def main():
 
         # quick recon snapshot
         if step % 500 == 0:
-            x_rec, _, _, _ = model.apply({"params": state.params}, batch, mutable=False)
+            x_rec, _, _, _ = base_tokenizer_model.apply({"params": state.params}, batch, mutable=False)
             x_rec_np = np.array(x_rec[0])  # first sample
             x_gt_np = np.array(batch[0])
             if mean is not None:

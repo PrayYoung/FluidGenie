@@ -83,14 +83,14 @@ def flatten_token_grid(tok: Int[Array, "b h w"]) -> Int[Array, "b l"]:
 
 
 def encode_tokens_seq(
-    vq_encode_fn, vq_params, x_seq: Float[Array, "b t h w c"]
+    tokenizer_encode_fn, tokenizer_params, x_seq: Float[Array, "b t h w c"]
 ) -> Int[Array, "b t h2 w2"]:
     """
     x_seq: [B, T, H, W, C] -> tok_seq: [B, T, h, w]
     """
     b, t, h, w, c = x_seq.shape
     x_flat = x_seq.reshape(b * t, h, w, c)
-    tok_flat = vq_encode_fn(vq_params, x_flat)
+    tok_flat = tokenizer_encode_fn(tokenizer_params, x_flat)
     return tok_flat.reshape(b, t, tok_flat.shape[1], tok_flat.shape[2])
 
 
@@ -209,20 +209,22 @@ def main():
 
     # Load tokenizer params
     vq_cfg = VQConfig(codebook_size=args.codebook, embed_dim=args.embed, hidden=args.hidden)
-    vq_model = VQVAE(vq_cfg, in_channels=C)
-    vq_init = vq_model.init(rng, jnp.zeros((1, H, W, C), dtype=jnp.float32))["params"]
-    vq_params = load_params(args.vq_ckpt, vq_init)
+    base_tokenizer_model = VQVAE(vq_cfg, in_channels=C)
+    base_tokenizer_init = base_tokenizer_model.init(
+        rng, jnp.zeros((1, H, W, C), dtype=jnp.float32)
+    )["params"]
+    base_tokenizer_params = load_params(args.vq_ckpt, base_tokenizer_init)
 
     # JIT encoder with model closed over (avoid passing Python objects into JIT)
-    def _vq_encode_to_tokens(vq_params, x: jnp.ndarray) -> jnp.ndarray:
-        _x_rec, tok, _commit, _cb = vq_model.apply({"params": vq_params}, x)
+    def _vq_encode_to_tokens(base_params, x: jnp.ndarray) -> jnp.ndarray:
+        _x_rec, tok, _commit, _cb = base_tokenizer_model.apply({"params": base_params}, x)
         return tok.astype(jnp.int32)
 
     vq_encode_to_tokens = jax.jit(_vq_encode_to_tokens)
 
     # Encode once to get token grid resolution
-    tok_ctx0 = encode_tokens_seq(vq_encode_to_tokens, vq_params, x_ctx0)
-    tok_tgt0 = encode_tokens_seq(vq_encode_to_tokens, vq_params, x_tgt0)[:, 0]
+    tok_ctx0 = encode_tokens_seq(vq_encode_to_tokens, base_tokenizer_params, x_ctx0)
+    tok_tgt0 = encode_tokens_seq(vq_encode_to_tokens, base_tokenizer_params, x_tgt0)[:, 0]
 
     h_tok, w_tok = tok_tgt0.shape[1], tok_tgt0.shape[2]
     L_in = args.context * h_tok * w_tok
@@ -241,13 +243,13 @@ def main():
         dropout=args.dropout,
         max_len=max_len,
     )
-    dyn_model = TransformerDynamics(dyn_cfg)
+    base_dynamics_model = TransformerDynamics(dyn_cfg)
     seq0 = jnp.zeros((1, max_len), dtype=jnp.int32)
-    dyn_params = dyn_model.init(rng, seq0, train=True)["params"]
+    base_dynamics_params = base_dynamics_model.init(rng, seq0, train=True)["params"]
 
     state = TrainState.create(
-        apply_fn=dyn_model.apply,
-        params=dyn_params,
+        apply_fn=base_dynamics_model.apply,
+        params=base_dynamics_params,
         tx=optax.adam(args.lr),
     )
 
@@ -272,8 +274,8 @@ def main():
         x_ctx = jnp.array(x_ctx)
         x_tgt = jnp.array(x_tgt)
         # Tokenize context and target (teacher forcing)
-        tok_ctx = encode_tokens_seq(vq_encode_to_tokens, vq_params, x_ctx)
-        tok_tgt = encode_tokens_seq(vq_encode_to_tokens, vq_params, x_tgt)[:, 0]
+        tok_ctx = encode_tokens_seq(vq_encode_to_tokens, base_tokenizer_params, x_ctx)
+        tok_tgt = encode_tokens_seq(vq_encode_to_tokens, base_tokenizer_params, x_tgt)[:, 0]
 
         tok_in = flatten_token_sequence(tok_ctx)     # [B, L_in]
         tok_out = flatten_token_grid(tok_tgt)        # [B, L_out]

@@ -154,7 +154,7 @@ def visualize_rollout(
 
 def encode_context_tokens(
     vq_encode_tokens,
-    vq_params,
+    tokenizer_params,
     ctx_frames: Float[Array, "t h w c"],
     mean,
     std,
@@ -165,7 +165,7 @@ def encode_context_tokens(
         x = (x - mean) / (std + 1e-6)
     x = jnp.array(x, dtype=jnp.float32)
     # vmap over time dimension
-    tok = jax.vmap(lambda f: vq_encode_tokens(vq_params, f[None, ...])[0])(x)
+    tok = jax.vmap(lambda f: vq_encode_tokens(tokenizer_params, f[None, ...])[0])(x)
     return tok[None, ...]
 
 
@@ -410,7 +410,7 @@ def run_rollout_generator(
         raise ValueError(f"Not enough frames in episode. Need start+context+horizon < T, got {start}+{context}+{horizon} >= {T}")
 
     vq_cfg = VQConfig(codebook_size=codebook_size, embed_dim=embed_dim, hidden=hidden)
-    vq_model, vq_params = load_tokenizer_params(
+    base_or_st_tokenizer_model, base_or_st_tokenizer_params = load_tokenizer_params(
         tokenizer_arch,
         vq_cfg,
         in_channels=C,
@@ -425,9 +425,13 @@ def run_rollout_generator(
         codebook_dropout=codebook_dropout,
     )
     if tokenizer_arch == "st":
-        vq_encode_tokens = make_st_encode_tokens(vq_model)
+        st_tokenizer_model = base_or_st_tokenizer_model
+        st_tokenizer_params = base_or_st_tokenizer_params
+        vq_encode_tokens = make_st_encode_tokens(st_tokenizer_model)
     else:
-        vq_encode_tokens = make_vq_encode_tokens(vq_model)
+        base_tokenizer_model = base_or_st_tokenizer_model
+        base_tokenizer_params = base_or_st_tokenizer_params
+        vq_encode_tokens = make_vq_encode_tokens(base_tokenizer_model)
 
     if stats_path:
         stats = np.load(stats_path)
@@ -438,7 +442,9 @@ def run_rollout_generator(
         std = None
 
     x0 = jnp.array(_norm(fields[start][None, ...], mean, std), dtype=jnp.float32)
-    tok0 = vq_encode_tokens(vq_params, x0)
+    tok0 = vq_encode_tokens(
+        st_tokenizer_params if tokenizer_arch == "st" else base_tokenizer_params, x0
+    )
     h_tok, w_tok = int(tok0.shape[1]), int(tok0.shape[2])
     L_in = context * h_tok * w_tok
     L_out = h_tok * w_tok
@@ -447,7 +453,7 @@ def run_rollout_generator(
     rng = jax.random.PRNGKey(rng_seed)
     if model_type == "st_maskgit":
         rng, mask_rng = jax.random.split(rng)
-        dyn_model = DynamicsSTMaskGIT(
+        st_dynamics_model = DynamicsSTMaskGIT(
             model_dim=d_model,
             num_latents=codebook_size,
             num_blocks=n_layers,
@@ -459,8 +465,10 @@ def run_rollout_generator(
         tok_seq0 = jnp.concatenate(
             [jnp.repeat(tok0[:, None, ...], context, axis=1), tok0[:, None, ...]], axis=1
         )
-        dyn_init = dyn_model.init(rng, {"video_tokens": tok_seq0, "mask_rng": mask_rng}, training=False)["params"]
-        dyn_params = load_params(dyn_ckpt, dyn_init)
+        st_dynamics_init = st_dynamics_model.init(
+            rng, {"video_tokens": tok_seq0, "mask_rng": mask_rng}, training=False
+        )["params"]
+        st_dynamics_params = load_params(dyn_ckpt, st_dynamics_init)
     else:
         vocab_size = codebook_size + (1 if model_type == "maskgit" else 0)
         dyn_cfg = DynConfig(
@@ -471,16 +479,24 @@ def run_rollout_generator(
             dropout=dropout,
             max_len=max_len,
         )
-        dyn_model, dyn_params = load_dyn_params(dyn_cfg, max_len=max_len, ckpt_path=dyn_ckpt)
+        base_dynamics_model, base_dynamics_params = load_dyn_params(
+            dyn_cfg, max_len=max_len, ckpt_path=dyn_ckpt
+        )
 
     if tokenizer_arch == "conv":
-        codebook, dec_params = get_codebook_and_decoder_params(vq_params)
+        codebook, dec_params = get_codebook_and_decoder_params(base_tokenizer_params)
     else:
         codebook = None
         dec_params = None
 
     ctx_frames = fields[start : start + context]
-    ctx_tok = encode_context_tokens(vq_encode_tokens, vq_params, ctx_frames, mean, std)
+    ctx_tok = encode_context_tokens(
+        vq_encode_tokens,
+        st_tokenizer_params if tokenizer_arch == "st" else base_tokenizer_params,
+        ctx_frames,
+        mean,
+        std,
+    )
 
     lam_model = None
     lam_params = None
@@ -527,8 +543,8 @@ def run_rollout_generator(
                 )
                 latent_actions = lam_out["z_q"]
             tok_next = st_maskgit_rollout_tokens(
-                dyn_model,
-                dyn_params,
+                st_dynamics_model,
+                st_dynamics_params,
                 tok_ctx,
                 mask_steps=mask_steps,
                 rng_key=rng,
@@ -537,8 +553,8 @@ def run_rollout_generator(
         else:
             if model_type == "maskgit":
                 tok_next_flat = maskgit_rollout_tokens(
-                    dyn_model,
-                    dyn_params,
+                    base_dynamics_model,
+                    base_dynamics_params,
                     tok_in,
                     L_out=L_out,
                     vocab=codebook_size + 1,
@@ -547,8 +563,8 @@ def run_rollout_generator(
                 )
             else:
                 tok_next_flat = rollout_tokens_autoregressive(
-                    dyn_model,
-                    dyn_params,
+                    base_dynamics_model,
+                    base_dynamics_params,
                     tok_in,
                     L_out=L_out,
                     vocab=codebook_size,
@@ -563,8 +579,8 @@ def run_rollout_generator(
         def rollout_cached_step(tok_ctx, _):
             tok_in = flatten_ctx(tok_ctx).astype(jnp.int32)
             tok_next_flat = rollout_tokens_autoregressive_cached(
-                dyn_model,
-                dyn_params,
+                base_dynamics_model,
+                base_dynamics_params,
                 tok_in,
                 L_out=L_out,
                 bos_token_id=bos_token_id,
@@ -582,9 +598,13 @@ def run_rollout_generator(
     for k in tqdm(range(horizon), desc="decode"):
         tok_next = tok_preds[k][None, ...]
         if tokenizer_arch == "st":
-            x_hat = st_decode_tokens(vq_model, vq_params, tok_next, (H, W))
+            x_hat = st_decode_tokens(
+                st_tokenizer_model, st_tokenizer_params, tok_next, (H, W)
+            )
         else:
-            x_hat = vq_decode_tokens(vq_cfg, dec_params, codebook, tok_next, out_channels=C)
+            x_hat = vq_decode_tokens(
+                vq_cfg, dec_params, codebook, tok_next, out_channels=C
+            )
         x_hat = _denorm(x_hat, mean, std)
         preds.append(np.array(x_hat[0]))
 

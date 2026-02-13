@@ -46,7 +46,7 @@ def save_tokenizer_recon(
     H, W, C = x.shape
 
     vq_cfg = VQConfig(codebook_size=codebook_size, embed_dim=embed_dim, hidden=hidden)
-    vq_model, vq_params = load_tokenizer_params(
+    base_or_st_tokenizer_model, base_or_st_tokenizer_params = load_tokenizer_params(
         tokenizer_arch,
         vq_cfg,
         in_channels=C,
@@ -61,9 +61,13 @@ def save_tokenizer_recon(
         codebook_dropout=codebook_dropout,
     )
     if tokenizer_arch == "st":
-        vq_encode_tokens = make_st_encode_tokens(vq_model)
+        st_tokenizer_model = base_or_st_tokenizer_model
+        st_tokenizer_params = base_or_st_tokenizer_params
+        vq_encode_tokens = make_st_encode_tokens(st_tokenizer_model)
     else:
-        vq_encode_tokens = make_vq_encode_tokens(vq_model)
+        base_tokenizer_model = base_or_st_tokenizer_model
+        base_tokenizer_params = base_or_st_tokenizer_params
+        vq_encode_tokens = make_vq_encode_tokens(base_tokenizer_model)
 
     if stats_path:
         stats = np.load(stats_path)
@@ -75,12 +79,14 @@ def save_tokenizer_recon(
 
     x_in = jnp.array(x_norm[None, ...], dtype=jnp.float32)
     if tokenizer_arch == "st":
-        tok = vq_encode_tokens(vq_params, x_in)[0]
-        x_rec = st_decode_tokens(vq_model, vq_params, tok[None, ...], (H, W))[0]
+        tok = vq_encode_tokens(st_tokenizer_params, x_in)[0]
+        x_rec = st_decode_tokens(st_tokenizer_model, st_tokenizer_params, tok[None, ...], (H, W))[0]
         commit = 0.0
         cb = 0.0
     else:
-        x_rec, tok, commit, cb = vq_model.apply({"params": vq_params}, x_in)
+        x_rec, tok, commit, cb = base_tokenizer_model.apply(
+            {"params": base_tokenizer_params}, x_in
+        )
         x_rec = np.array(x_rec[0])
         tok = np.array(tok[0])
     if stats_path:
@@ -150,10 +156,12 @@ def save_tokenizer_recon(
             x_in = (x_t - mean) / (std + 1e-6)
         x_in = jnp.array(x_in[None, ...], dtype=jnp.float32)
         if tokenizer_arch == "st":
-            tok = vq_encode_tokens(vq_params, x_in)[0]
-            x_rec = st_decode_tokens(vq_model, vq_params, tok[None, ...], (H, W))[0]
+            tok = vq_encode_tokens(st_tokenizer_params, x_in)[0]
+            x_rec = st_decode_tokens(st_tokenizer_model, st_tokenizer_params, tok[None, ...], (H, W))[0]
         else:
-            x_rec, tok, _, _ = vq_model.apply({"params": vq_params}, x_in)
+            x_rec, tok, _, _ = base_tokenizer_model.apply(
+                {"params": base_tokenizer_params}, x_in
+            )
             x_rec = np.array(x_rec[0])
             tok = np.array(tok[0])
         if stats_path:

@@ -79,7 +79,7 @@ def main():
     sample_x, sample_y = ds[0]
     H, W, C = sample_x.shape[-3:]
 
-    model = TokenizerSTVQVAE(
+    st_tokenizer_model = TokenizerSTVQVAE(
         in_dim=C,
         model_dim=args.model_dim,
         latent_dim=args.embed,
@@ -89,13 +89,16 @@ def main():
         num_heads=args.num_heads,
         dropout=args.dropout,
         codebook_dropout=args.codebook_dropout,
+        positional=args.st_positional,
     )
 
     batch0 = next(loader)
-    params = model.init(rng, {"videos": jnp.array(batch0)}, training=True)["params"]
+    st_tokenizer_params = st_tokenizer_model.init(
+        rng, {"videos": jnp.array(batch0)}, training=True
+    )["params"]
     state = TrainState.create(
-        apply_fn=model.apply,
-        params=params,
+        apply_fn=st_tokenizer_model.apply,
+        params=st_tokenizer_params,
         tx=optax.adam(args.lr),
     )
 

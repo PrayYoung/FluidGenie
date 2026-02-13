@@ -49,11 +49,11 @@ def infinite_loader(ds: NPZSequenceDataset, batch_size: int) -> Iterator[Tuple[n
 
 
 def encode_tokens_seq(
-    vq_encode_fn, vq_params, x_seq: Float[Array, "b t h w c"]
+    tokenizer_encode_fn, tokenizer_params, x_seq: Float[Array, "b t h w c"]
 ) -> Int[Array, "b t h2 w2"]:
     b, t, h, w, c = x_seq.shape
     x_flat = x_seq.reshape(b * t, h, w, c)
-    tok_flat = vq_encode_fn(vq_params, x_flat)
+    tok_flat = tokenizer_encode_fn(tokenizer_params, x_flat)
     return tok_flat.reshape(b, t, tok_flat.shape[1], tok_flat.shape[2])
 
 
@@ -103,12 +103,14 @@ def main():
     x_tgt0 = jnp.array(x_tgt0)
 
     vq_cfg = VQConfig(codebook_size=args.codebook, embed_dim=args.embed, hidden=args.hidden)
-    vq_model = VQVAE(vq_cfg, in_channels=C)
-    vq_init = vq_model.init(rng, jnp.zeros((1, H, W, C), dtype=jnp.float32))["params"]
-    vq_params = load_params(args.vq_ckpt, vq_init)
+    base_tokenizer_model = VQVAE(vq_cfg, in_channels=C)
+    base_tokenizer_init = base_tokenizer_model.init(
+        rng, jnp.zeros((1, H, W, C), dtype=jnp.float32)
+    )["params"]
+    base_tokenizer_params = load_params(args.vq_ckpt, base_tokenizer_init)
 
-    def _vq_encode_to_tokens(vq_params, x: jnp.ndarray) -> jnp.ndarray:
-        _x_rec, tok, _commit, _cb = vq_model.apply({"params": vq_params}, x)
+    def _vq_encode_to_tokens(base_params, x: jnp.ndarray) -> jnp.ndarray:
+        _x_rec, tok, _commit, _cb = base_tokenizer_model.apply({"params": base_params}, x)
         return tok.astype(jnp.int32)
 
     vq_encode_to_tokens = jax.jit(_vq_encode_to_tokens)
@@ -148,7 +150,7 @@ def main():
 
         lam_encode = jax.jit(_lam_encode)
 
-    dyn_model = DynamicsSTMaskGIT(
+    st_dynamics_model = DynamicsSTMaskGIT(
         model_dim=args.d_model,
         num_latents=args.codebook,
         num_blocks=args.n_layers,
@@ -157,12 +159,16 @@ def main():
         mask_ratio_min=args.mask_ratio_min,
         mask_ratio_max=args.mask_ratio_max,
     )
-    tok_seq0 = encode_tokens_seq(vq_encode_to_tokens, vq_params, jnp.concatenate([x_ctx0, x_tgt0], axis=1))
-    dyn_params = dyn_model.init(rng, {"video_tokens": tok_seq0, "mask_rng": rng}, training=True)["params"]
+    tok_seq0 = encode_tokens_seq(
+        vq_encode_to_tokens, base_tokenizer_params, jnp.concatenate([x_ctx0, x_tgt0], axis=1)
+    )
+    st_dynamics_params = st_dynamics_model.init(
+        rng, {"video_tokens": tok_seq0, "mask_rng": rng}, training=True
+    )["params"]
 
     state = TrainState.create(
-        apply_fn=dyn_model.apply,
-        params=dyn_params,
+        apply_fn=st_dynamics_model.apply,
+        params=st_dynamics_params,
         tx=optax.adam(args.lr),
     )
 
@@ -178,7 +184,7 @@ def main():
         x_tgt = jnp.array(x_tgt)
 
         x_seq = jnp.concatenate([x_ctx, x_tgt], axis=1)
-        tok_seq = encode_tokens_seq(vq_encode_to_tokens, vq_params, x_seq)
+        tok_seq = encode_tokens_seq(vq_encode_to_tokens, base_tokenizer_params, x_seq)
         latent_actions = None
         if args.use_lam:
             latent_actions = lam_encode(lam_params, x_seq)

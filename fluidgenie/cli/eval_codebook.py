@@ -28,7 +28,7 @@ def main() -> None:
 
     rng = jax.random.PRNGKey(args.seed)
     if args.tokenizer_arch == "st":
-        vq_model = TokenizerSTVQVAE(
+        st_tokenizer_model = TokenizerSTVQVAE(
             in_dim=C,
             model_dim=args.model_dim,
             latent_dim=args.embed,
@@ -39,16 +39,18 @@ def main() -> None:
             dropout=args.dropout,
             codebook_dropout=args.codebook_dropout,
         )
-        init_params = vq_model.init(
+        init_params = st_tokenizer_model.init(
             rng,
             {"videos": jnp.zeros((1, 1, H, W, C), dtype=jnp.float32)},
             training=False,
         )["params"]
     else:
         vq_cfg = VQConfig(codebook_size=args.codebook, embed_dim=args.embed, hidden=args.hidden)
-        vq_model = VQVAE(vq_cfg, in_channels=C)
-        init_params = vq_model.init(rng, jnp.zeros((1, H, W, C), dtype=jnp.float32))["params"]
-    vq_params = load_params(args.vq_ckpt, init_params)
+        base_tokenizer_model = VQVAE(vq_cfg, in_channels=C)
+        init_params = base_tokenizer_model.init(
+            rng, jnp.zeros((1, H, W, C), dtype=jnp.float32)
+        )["params"]
+    tokenizer_params = load_params(args.vq_ckpt, init_params)
 
     if args.stats:
         stats = np.load(args.stats)
@@ -63,9 +65,13 @@ def main() -> None:
             x = (x - mean) / (std + 1e-6)
         x = jnp.array(x, dtype=jnp.float32)
         if args.tokenizer_arch == "st":
-            tok = vq_model.apply({"params": vq_params}, x, method=TokenizerSTVQVAE.encode_frame)
+            tok = st_tokenizer_model.apply(
+                {"params": tokenizer_params}, x, method=TokenizerSTVQVAE.encode_frame
+            )
         else:
-            _x_rec, tok, _c, _cb = vq_model.apply({"params": vq_params}, x)
+            _x_rec, tok, _c, _cb = base_tokenizer_model.apply(
+                {"params": tokenizer_params}, x
+            )
         return np.array(tok)
 
     all_tok = []
