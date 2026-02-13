@@ -11,8 +11,6 @@ Run:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Iterator
-
 import numpy as np
 import jax
 import jax.numpy as jnp
@@ -23,25 +21,11 @@ from jaxtyping import Array, Float
 import tyro
 
 from configs.model_configs import TokenizerConfig
-from fluidgenie.data.dataset_npz import NPZSequenceDataset, prefetch_iter
+from fluidgenie.data.dataset_npz import NPZSequenceDataset, create_grain_dataloader
 from fluidgenie.training.logging_utils import TrainingLogger
 from fluidgenie.training.losses import tokenizer_st_loss
 from fluidgenie.training.checkpoint_utils import save_params
 from fluidgenie.models.tokenizer_st import TokenizerSTVQVAE
-
-
-def infinite_loader(ds: NPZSequenceDataset, batch_size: int) -> Iterator[np.ndarray]:
-    idx = np.arange(len(ds))
-    rng = np.random.default_rng(0)
-    while True:
-        rng.shuffle(idx)
-        for i in range(0, len(idx), batch_size):
-            batch_idx = idx[i : i + batch_size]
-            seqs = []
-            for j in batch_idx:
-                x, y = ds[j]
-                seqs.append(np.concatenate([x, y], axis=0))
-            yield np.stack(seqs, axis=0)
 
 
 class TrainState(train_state.TrainState):
@@ -72,9 +56,15 @@ def main():
 
     stats_path = args.stats if args.stats else None
     ds = NPZSequenceDataset(args.data, context=args.seq_len - 1, pred=1, stats_path=stats_path)
-    loader = infinite_loader(ds, args.batch)
-    if args.prefetch_batches > 0:
-        loader = prefetch_iter(loader, prefetch=args.prefetch_batches, num_workers=args.prefetch_workers)
+    loader = create_grain_dataloader(
+        args.data,
+        batch_size=args.batch,
+        context=args.seq_len - 1,
+        seed=args.seed,
+        num_workers=args.grain_workers,
+        stats_path=stats_path,
+    )
+    data_iter = iter(loader)
 
     sample_x, sample_y = ds[0]
     H, W, C = sample_x.shape[-3:]
@@ -92,7 +82,8 @@ def main():
         positional=args.st_positional,
     )
 
-    batch0 = next(loader)
+    x_ctx0, x_tgt0 = next(data_iter)
+    batch0 = np.concatenate([x_ctx0, x_tgt0], axis=1)
     st_tokenizer_params = st_tokenizer_model.init(
         rng, {"videos": jnp.array(batch0)}, training=True
     )["params"]
@@ -109,8 +100,8 @@ def main():
     train_step = make_train_step(args.loss_beta)
 
     for step in trange(args.steps):
-        batch = next(loader)
-        batch = jnp.array(batch)
+        x_ctx, x_tgt = next(data_iter)
+        batch = jnp.array(np.concatenate([x_ctx, x_tgt], axis=1))
         dropout_rng, step_key = jax.random.split(dropout_rng)
         state, metrics = train_step(state, batch, step_key)
 

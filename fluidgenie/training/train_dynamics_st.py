@@ -24,28 +24,13 @@ from jaxtyping import Array, Float, Int
 import tyro
 
 from configs.model_configs import DynamicsConfig
-from fluidgenie.data.dataset_npz import NPZSequenceDataset, prefetch_iter
+from fluidgenie.data.dataset_npz import NPZSequenceDataset, create_grain_dataloader
 from fluidgenie.training.logging_utils import TrainingLogger
 from fluidgenie.training.losses import dynamics_st_loss
 from fluidgenie.training.checkpoint_utils import save_params, load_params
 from fluidgenie.models.base_tokenizer import VQVAE, VQConfig
 from fluidgenie.models.dynamics_st import DynamicsSTMaskGIT
 from fluidgenie.models.lam import LatentActionModel
-
-
-def infinite_loader(ds: NPZSequenceDataset, batch_size: int) -> Iterator[Tuple[np.ndarray, np.ndarray]]:
-    idx = np.arange(len(ds))
-    rng = np.random.default_rng(0)
-    while True:
-        rng.shuffle(idx)
-        for i in range(0, len(idx), batch_size):
-            batch_idx = idx[i : i + batch_size]
-            xs, ys = [], []
-            for j in batch_idx:
-                x, y = ds[j]
-                xs.append(x)
-                ys.append(y[:1])
-            yield np.stack(xs, axis=0), np.stack(ys, axis=0)
 
 
 def encode_tokens_seq(
@@ -93,11 +78,17 @@ def main():
 
     stats_path = args.stats if args.stats else None
     ds = NPZSequenceDataset(args.data, context=args.context, pred=1, stats_path=stats_path)
-    loader = infinite_loader(ds, args.batch)
-    if args.prefetch_batches > 0:
-        loader = prefetch_iter(loader, prefetch=args.prefetch_batches, num_workers=args.prefetch_workers)
+    loader = create_grain_dataloader(
+        args.data,
+        batch_size=args.batch,
+        context=args.context,
+        seed=args.seed,
+        num_workers=args.grain_workers,
+        stats_path=stats_path,
+    )
+    data_iter = iter(loader)
 
-    x_ctx0, x_tgt0 = next(loader)
+    x_ctx0, x_tgt0 = next(data_iter)
     H, W, C = x_ctx0.shape[-3:]
     x_ctx0 = jnp.array(x_ctx0)
     x_tgt0 = jnp.array(x_tgt0)
@@ -179,7 +170,7 @@ def main():
     mask_rng = jax.random.PRNGKey(args.seed + 2)
 
     for step in trange(args.steps):
-        x_ctx, x_tgt = next(loader)
+        x_ctx, x_tgt = next(data_iter)
         x_ctx = jnp.array(x_ctx)
         x_tgt = jnp.array(x_tgt)
 

@@ -174,8 +174,8 @@ uv run python -m fluidgenie.data.compute_stats \
 ---
 
 ## Perf Tips
-- Add async prefetch in training:
-  - `--prefetch-batches 4 --prefetch-workers 1`
+- Use Grain workers to parallelize data loading:
+  - `--grain-workers 4`
 - For large rollouts, prefer `--model st_maskgit` to avoid slow AR decode.
 
 ---

@@ -36,7 +36,7 @@ from einops import rearrange
 from jaxtyping import Array, Float, Int
 import tyro
 
-from fluidgenie.data.dataset_npz import NPZSequenceDataset, prefetch_iter
+from fluidgenie.data.dataset_npz import NPZSequenceDataset, create_grain_dataloader
 from fluidgenie.training.logging_utils import TrainingLogger
 from fluidgenie.training.losses import dynamics_ar_loss
 from fluidgenie.training.checkpoint_utils import save_params, load_params
@@ -47,26 +47,6 @@ from fluidgenie.models.base_dynamics import TransformerDynamics, DynConfig
 # -------------------------
 # Data loader
 # -------------------------
-
-def infinite_loader(ds: NPZSequenceDataset, batch_size: int) -> Iterator[Tuple[np.ndarray, np.ndarray]]:
-    """
-    Yields:
-      x_ctx: float32 [B, context, H, W, C]
-      x_tgt: float32 [B, 1,       H, W, C]   (next frame)
-    """
-    idx = np.arange(len(ds))
-    rng = np.random.default_rng(0)
-    while True:
-        rng.shuffle(idx)
-        for i in range(0, len(idx), batch_size):
-            batch_idx = idx[i : i + batch_size]
-            xs, ys = [], []
-            for j in batch_idx:
-                x, y = ds[j]  # x:[context,H,W,C], y:[pred,H,W,C]
-                xs.append(x)
-                ys.append(y[:1])  # force pred=1
-            yield np.stack(xs, axis=0), np.stack(ys, axis=0)
-
 
 def flatten_token_sequence(tok_ctx: Int[Array, "b t h w"]) -> Int[Array, "b l"]:
     """
@@ -197,12 +177,18 @@ def main():
     # Dataset windows: context frames + 1 pred frame
     stats_path = args.stats if args.stats else None
     ds = NPZSequenceDataset(args.data, context=args.context, pred=1, stats_path=stats_path)
-    loader = infinite_loader(ds, args.batch)
-    if args.prefetch_batches > 0:
-        loader = prefetch_iter(loader, prefetch=args.prefetch_batches, num_workers=args.prefetch_workers)
+    loader = create_grain_dataloader(
+        args.data,
+        batch_size=args.batch,
+        context=args.context,
+        seed=args.seed,
+        num_workers=args.grain_workers,
+        stats_path=stats_path,
+    )
+    data_iter = iter(loader)
 
     # Infer shapes (H,W,C)
-    x_ctx0, x_tgt0 = next(loader)
+    x_ctx0, x_tgt0 = next(data_iter)
     H, W, C = x_ctx0.shape[-3:]
     x_ctx0 = jnp.array(x_ctx0)
     x_tgt0 = jnp.array(x_tgt0)
@@ -270,7 +256,7 @@ def main():
 
     # Train loop
     for step in trange(args.steps):
-        x_ctx, x_tgt = next(loader)
+        x_ctx, x_tgt = next(data_iter)
         x_ctx = jnp.array(x_ctx)
         x_tgt = jnp.array(x_tgt)
         # Tokenize context and target (teacher forcing)

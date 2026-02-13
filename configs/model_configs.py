@@ -30,8 +30,7 @@ class TokenizerConfig:
     dropout: float = 0.0
     codebook_dropout: float = 0.0
     seq_len: int = 2
-    prefetch_batches: int = 0
-    prefetch_workers: int = 1
+    grain_workers: int = 1
 
 
 @dataclass
@@ -64,8 +63,7 @@ class DynamicsConfig:
     mask_schedule: str = "cosine"
     mask_steps: int = 8
     bos_token_id: int = 0
-    prefetch_batches: int = 0
-    prefetch_workers: int = 1
+    grain_workers: int = 1
 
     # Optional LAM conditioning for spatial-temporal dynamics
     use_lam: bool = False
@@ -102,5 +100,4 @@ class LAMConfig:
     num_heads: int = 8
     dropout: float = 0.0
     codebook_dropout: float = 0.0
-    prefetch_batches: int = 0
-    prefetch_workers: int = 1
+    grain_workers: int = 1

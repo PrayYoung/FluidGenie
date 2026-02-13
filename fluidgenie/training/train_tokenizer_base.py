@@ -15,8 +15,6 @@ from __future__ import annotations
 
 from configs.model_configs import TokenizerConfig
 from pathlib import Path
-from typing import Iterator
-
 import numpy as np
 import jax
 import jax.numpy as jnp
@@ -25,7 +23,7 @@ from flax.training import train_state
 from tqdm import trange
 from jaxtyping import Array, Float
 
-from fluidgenie.data.dataset_npz import NPZSequenceDataset, prefetch_iter
+from fluidgenie.data.dataset_npz import NPZSequenceDataset, create_grain_dataloader
 from fluidgenie.training.logging_utils import TrainingLogger
 from fluidgenie.training.losses import tokenizer_conv_loss
 from fluidgenie.training.checkpoint_utils import save_params
@@ -36,21 +34,6 @@ import tyro
 # -------------------------
 # Utilities
 # -------------------------
-
-def infinite_loader(ds: NPZSequenceDataset, batch_size: int) -> Iterator[np.ndarray]:
-    idx = np.arange(len(ds))
-    rng = np.random.default_rng(0)
-    while True:
-        rng.shuffle(idx)
-        for i in range(0, len(idx), batch_size):
-            batch_idx = idx[i : i + batch_size]
-            frames = []
-            for j in batch_idx:
-                x, _ = ds[j]   # x: [context,H,W,C]
-                # use the last context frame
-                frames.append(x[-1])
-            yield np.stack(frames, axis=0)
-
 
 class TrainState(train_state.TrainState):
     pass
@@ -92,9 +75,15 @@ def main():
     else:
         mean = None
         std = None
-    loader = infinite_loader(ds, args.batch)
-    if args.prefetch_batches > 0:
-        loader = prefetch_iter(loader, prefetch=args.prefetch_batches, num_workers=args.prefetch_workers)
+    loader = create_grain_dataloader(
+        args.data,
+        batch_size=args.batch,
+        context=2,
+        seed=args.seed,
+        num_workers=args.grain_workers,
+        stats_path=stats_path,
+    )
+    data_iter = iter(loader)
 
     # Infer input channels
     sample_x, _ = ds[0]
@@ -109,7 +98,8 @@ def main():
     base_tokenizer_model = VQVAE(cfg, in_channels=C)
 
     # Init
-    batch0 = next(loader)
+    x_ctx0, _ = next(data_iter)
+    batch0 = x_ctx0[:, -1]
     base_tokenizer_params = base_tokenizer_model.init(rng, jnp.array(batch0))["params"]
 
     state = TrainState.create(
@@ -126,8 +116,8 @@ def main():
 
     # Training loop
     for step in trange(args.steps):
-        batch = next(loader)
-        batch = jnp.array(batch)
+        x_ctx, _ = next(data_iter)
+        batch = jnp.array(x_ctx[:, -1])
         state, metrics = train_step(state, batch)
 
         if logger.should_log(step):

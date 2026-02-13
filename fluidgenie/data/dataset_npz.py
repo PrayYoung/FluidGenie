@@ -1,9 +1,9 @@
 import os
 import glob
+import grain
+from typing import Tuple
+
 import numpy as np
-from concurrent.futures import ThreadPoolExecutor
-from threading import Lock
-from typing import Iterator, Tuple
 from jaxtyping import Array, Float
 
 class NPZSequenceDataset:
@@ -22,8 +22,11 @@ class NPZSequenceDataset:
         # build an index mapping (file_idx, start_t)
         self.index = []
         for i, f in enumerate(self.files):
-            arr = np.load(f)["fields"]
-            T = arr.shape[0]
+            try:
+                with np.load(f, mmap_mode="r") as data:
+                    T = data["fields"].shape[0]
+            except Exception:
+                raise ValueError(f"Error loading {f}. Ensure it contains a 'fields' array with shape [T,H,W,C].")
             # need context frames + pred frames
             for t in range(0, T - (context + pred) + 1):
                 self.index.append((i, t))
@@ -47,36 +50,34 @@ class NPZSequenceDataset:
         return x, y
 
 
-def prefetch_iter(
-    base_iter: Iterator[Tuple[Float[Array, "..."], Float[Array, "..."]]],
-    prefetch: int = 2,
-    num_workers: int = 1,
-) -> Iterator[Tuple[Float[Array, "..."], Float[Array, "..."]]]:
-    """
-    Prefetch items from an iterator in a background thread.
-    Keeps output order while overlapping data loading with compute.
-    """
-    if prefetch <= 0:
-        return base_iter
+def create_grain_dataloader(
+    data_dir: str,
+    batch_size: int,
+    context: int = 2,
+    seed: int = 0,
+    num_workers: int = 4,
+    stats_path: str | None = None,
+) -> grain.DataLoader:
+    source = NPZSequenceDataset(data_dir, context=context, pred=1, stats_path=stats_path)
 
-    lock = Lock()
+    sampler = grain.samplers.IndexSampler(
+        num_records=len(source),
+        shuffle=True,
+        seed=seed,
+        shard_options=grain.sharding.ShardOptions(
+            shard_index=0, shard_count=1, drop_remainder=True
+        ),
+        num_epochs=None,
+    )
 
-    def _next():
-        with lock:
-            return next(base_iter)
-
-    def _gen():
-        with ThreadPoolExecutor(max_workers=max(1, num_workers)) as ex:
-            futures = []
-            for _ in range(prefetch):
-                futures.append(ex.submit(_next))
-            while True:
-                fut = futures.pop(0)
-                try:
-                    item = fut.result()
-                except StopIteration:
-                    return
-                futures.append(ex.submit(_next))
-                yield item
-
-    return _gen()
+    operations = [
+        grain.transforms.Batch(batch_size=batch_size, drop_remainder=True),
+    ]
+    loader = grain.DataLoader(
+        data_source=source,
+        sampler=sampler,
+        operations=operations,
+        worker_count=num_workers,
+        worker_buffer_size=2
+    )
+    return loader
