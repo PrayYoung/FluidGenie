@@ -79,7 +79,6 @@ def main():
         num_heads=args.num_heads,
         dropout=args.dropout,
         codebook_dropout=args.codebook_dropout,
-        positional=args.st_positional,
     )
 
     x_ctx0, x_tgt0 = next(data_iter)

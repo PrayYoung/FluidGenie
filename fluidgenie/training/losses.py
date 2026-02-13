@@ -4,6 +4,7 @@ from typing import Tuple, Dict, Any, Callable
 
 import jax
 import jax.numpy as jnp
+import optax
 from jaxtyping import Array, Bool, Float, Int
 
 
@@ -129,7 +130,7 @@ def dynamics_ar_loss(
 ) -> Tuple[Float[Array, ""], Dict[str, Float[Array, ""]]]:
     logits = apply_fn({"params": params}, seq, train=True, rngs={"dropout": dropout_key})
     logits_tgt = logits[:, l_in:, :]
-    ce = jax.nn.softmax_cross_entropy_with_integer_labels(logits_tgt, tok_tgt)
+    ce = optax.softmax_cross_entropy_with_integer_labels(logits_tgt, tok_tgt)
     if mask is not None:
         mask_f = mask.astype(ce.dtype)
         loss = (ce * mask_f).sum() / (mask_f.sum() + 1e-6)
@@ -157,7 +158,7 @@ def dynamics_st_loss(
     )
     mask = outputs["mask"].astype(jnp.float32)
     logits = outputs["token_logits"]
-    ce = jax.nn.softmax_cross_entropy_with_integer_labels(logits, tok_seq)
+    ce = optax.softmax_cross_entropy_with_integer_labels(logits, tok_seq)
     denom = jnp.maximum(mask.sum(), 1.0)
     loss = (mask * ce).sum() / denom
     acc = (mask * (logits.argmax(-1) == tok_seq)).sum() / denom

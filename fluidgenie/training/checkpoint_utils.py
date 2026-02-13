@@ -16,7 +16,7 @@ def save_params(out_dir: Path, name: str, params: Any) -> Path:
 
 
 def load_params(ckpt_path: str, params_init: Any) -> Any:
-    p = Path(ckpt_path)
+    p = Path(ckpt_path).expanduser().resolve()
     if p.exists() and p.is_dir():
         checkpointer = PyTreeCheckpointer()
         return checkpointer.restore(p, item=params_init)

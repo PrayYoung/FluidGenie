@@ -2,6 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+# Shared defaults to keep tokenizer/dynamics consistent
+DEFAULT_CODEBOOK = 512
+DEFAULT_EMBED = 64
+DEFAULT_HIDDEN = 128
+
 
 @dataclass
 class TokenizerConfig:
@@ -10,9 +15,9 @@ class TokenizerConfig:
     batch: int = 8
     steps: int = 5000
     lr: float = 3e-4
-    codebook: int = 1024
-    embed: int = 64
-    hidden: int = 128
+    codebook: int = DEFAULT_CODEBOOK
+    embed: int = DEFAULT_EMBED
+    hidden: int = DEFAULT_HIDDEN
     seed: int = 0
     log_every: int = 50
     tb: int = 1
@@ -44,9 +49,9 @@ class DynamicsConfig:
     lr: float = 3e-4
     seed: int = 0
 
-    codebook: int = 512
-    embed: int = 64
-    hidden: int = 128
+    codebook: int = DEFAULT_CODEBOOK
+    embed: int = DEFAULT_EMBED
+    hidden: int = DEFAULT_HIDDEN
 
     model: str = "transformer"
     d_model: int = 256
