@@ -228,7 +228,7 @@ def rollout_tokens_autoregressive_cached(
             decode=True,
             mutable=["cache"],
         )
-        return updated["cache"], None
+        return freeze(updated["cache"]), None
 
     cache, _ = jax.lax.scan(prefill_step, cache, tok_in.T)
 
@@ -256,7 +256,7 @@ def rollout_tokens_autoregressive_cached(
             mutable=["cache"],
         )
         next_t = sample_argmax(logits[:, -1, :])
-        return (updated["cache"], next_t), next_t
+        return (freeze(updated["cache"]), next_t), next_t
 
     if L_out <= 1:
         return next_tok[:, None]

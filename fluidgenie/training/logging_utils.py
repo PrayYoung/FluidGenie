@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import numpy as np
+from tqdm import tqdm
 
 try:
     from tensorboardX import SummaryWriter
@@ -59,7 +60,7 @@ class TrainingLogger:
             f.write(json.dumps(record) + "\n")
 
         msg_parts = [f"[{step}]"] + [f"{k}={v:.6f}" for k, v in m.items()]
-        print(" ".join(msg_parts), flush=True)
+        tqdm.write(" ".join(msg_parts))
 
         if self._tb is not None:
             for k, v in m.items():
