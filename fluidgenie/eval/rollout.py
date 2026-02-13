@@ -40,6 +40,109 @@ def sample_argmax(logits: jnp.ndarray) -> jnp.ndarray:
     return jnp.argmax(logits, axis=-1).astype(jnp.int32)
 
 
+def _denorm(x: jnp.ndarray, mean, std) -> jnp.ndarray:
+    if mean is None:
+        return x
+    return x * (std + 1e-6) + mean
+
+
+def _norm(x: np.ndarray, mean, std) -> np.ndarray:
+    if mean is None:
+        return x
+    return (x - mean) / (std + 1e-6)
+
+
+def compute_rollout_metrics(gt: np.ndarray, pred: np.ndarray, view: str) -> dict:
+    """
+    gt, pred: [T,H,W,C]
+    Returns per-frame metrics and aggregates.
+    """
+    assert gt.shape == pred.shape
+    T, _, _, C = gt.shape
+    mse = np.mean((gt - pred) ** 2, axis=(1, 2, 3))
+    mae = np.mean(np.abs(gt - pred), axis=(1, 2, 3))
+
+    if view == "density" and C >= 3:
+        gt_v = gt[..., 2]
+        pr_v = pred[..., 2]
+    elif view == "speed" and C >= 2:
+        gt_v = np.sqrt(gt[..., 0] ** 2 + gt[..., 1] ** 2)
+        pr_v = np.sqrt(pred[..., 0] ** 2 + pred[..., 1] ** 2)
+    elif view == "vorticity" and C >= 2:
+        gt_v = np.stack([vorticity_from_uv(gt[t, ..., :2]) for t in range(T)], axis=0)
+        pr_v = np.stack([vorticity_from_uv(pred[t, ..., :2]) for t in range(T)], axis=0)
+    else:
+        gt_v = gt[..., 0]
+        pr_v = pred[..., 0]
+
+    view_mae = np.mean(np.abs(pr_v - gt_v), axis=(1, 2))
+
+    return {
+        "mse": mse,
+        "mae": mae,
+        "view_mae": view_mae,
+        "mse_mean": float(mse.mean()),
+        "mae_mean": float(mae.mean()),
+        "view_mae_mean": float(view_mae.mean()),
+    }
+
+
+def visualize_rollout(gt: np.ndarray, pred: np.ndarray, out_dir: Path, view: str, fps: int = 8) -> None:
+    T, _, _, C = gt.shape
+    frames = []
+    for k in range(T):
+        gt_k = gt[k]
+        pr_k = pred[k]
+
+        if view == "density" and C >= 3:
+            w_gt = gt_k[..., 2]
+            w_pr = pr_k[..., 2]
+            err = np.abs(w_pr - w_gt)
+            title = "Density"
+        elif view == "speed" and C >= 2:
+            w_gt = np.sqrt(gt_k[..., 0] ** 2 + gt_k[..., 1] ** 2)
+            w_pr = np.sqrt(pr_k[..., 0] ** 2 + pr_k[..., 1] ** 2)
+            err = np.abs(w_pr - w_gt)
+            title = "Speed"
+        elif view == "vorticity" and C >= 2:
+            w_gt = vorticity_from_uv(gt_k[..., :2])
+            w_pr = vorticity_from_uv(pr_k[..., :2])
+            err = np.abs(w_pr - w_gt)
+            title = "Vorticity"
+        else:
+            w_gt = gt_k[..., 0]
+            w_pr = pr_k[..., 0]
+            err = np.abs(w_pr - w_gt)
+            title = "Channel0"
+
+        fig = plt.figure(figsize=(9, 3))
+        ax1 = fig.add_subplot(1, 3, 1)
+        ax1.imshow(w_gt)
+        ax1.set_title(f"GT {title} (t={k})")
+        ax1.axis("off")
+
+        ax2 = fig.add_subplot(1, 3, 2)
+        ax2.imshow(w_pr)
+        ax2.set_title(f"Rollout {title}")
+        ax2.axis("off")
+
+        ax3 = fig.add_subplot(1, 3, 3)
+        ax3.imshow(err)
+        ax3.set_title(f"Abs error {title}")
+        ax3.axis("off")
+
+        fig.tight_layout()
+        fig.canvas.draw()
+        buf = np.asarray(fig.canvas.buffer_rgba())
+        img = np.array(buf)[..., :3]
+        plt.close(fig)
+        frames.append(img)
+
+    out_gif = out_dir / f"gt_vs_rollout_{T}.gif"
+    imageio.mimsave(out_gif, frames, duration=1.0 / max(1, fps))
+    print("Saved:", out_gif)
+
+
 def encode_context_tokens(vq_encode_tokens, vq_params, ctx_frames: np.ndarray, mean, std) -> jnp.ndarray:
     # ctx_frames: [context,H,W,C] -> [1,context,h,w]
     x = ctx_frames.astype(np.float32)
@@ -197,14 +300,15 @@ def st_maskgit_rollout_tokens(
     tok_ctx: [B, context, h, w]
     returns tok_next: [B, h, w]
     """
-    b, t, h, w = tok_ctx.shape
+    b, _, h, w = tok_ctx.shape
     n = h * w
-    tok_next = jnp.zeros((b, h, w), dtype=jnp.int32)
-    mask = jnp.ones((b, h, w), dtype=jnp.bool_)
+    tok_next0 = jnp.zeros((b, h, w), dtype=jnp.int32)
+    mask0 = jnp.ones((b, h, w), dtype=jnp.bool_)
 
-    for step in range(mask_steps):
+    def step_fn(carry, step_idx):
+        tok_next, mask, rng = carry
         tok_seq = jnp.concatenate([tok_ctx, tok_next[:, None]], axis=1)  # [B, T+1, h, w]
-        step_key, rng_key = jax.random.split(rng_key)
+        step_key, rng = jax.random.split(rng)
         batch = {
             "video_tokens": tok_seq,
             "mask_rng": step_key,
@@ -218,7 +322,7 @@ def st_maskgit_rollout_tokens(
         pred = jnp.argmax(probs, axis=-1).astype(jnp.int32)
         conf = jnp.max(probs, axis=-1)
 
-        t_ratio = (step + 1) / mask_steps
+        t_ratio = (step_idx + 1) / mask_steps
         ratio = 0.5 * (1.0 + jnp.cos(jnp.pi * t_ratio))
         k = jnp.maximum(1, jnp.floor(ratio * n).astype(jnp.int32))
 
@@ -231,7 +335,6 @@ def st_maskgit_rollout_tokens(
         tok_next_flat, keep_idx = jax.vmap(update_one)(conf, pred, tok_next_flat)
         tok_next = tok_next_flat.reshape(b, h, w)
 
-        # update mask: keep top-k, mask the rest
         def update_mask(keep):
             m = jnp.ones((n,), dtype=jnp.bool_)
             m = m.at[keep].set(False)
@@ -239,15 +342,16 @@ def st_maskgit_rollout_tokens(
 
         mask_flat = jax.vmap(update_mask)(keep_idx)
         mask = mask_flat.reshape(b, h, w)
+        return (tok_next, mask, rng), None
 
+    (tok_next, _, _), _ = jax.lax.scan(step_fn, (tok_next0, mask0, rng_key), jnp.arange(mask_steps))
     return tok_next
 
 
-def run_rollout(
+def run_rollout_generator(
     npz_path: str,
     vq_ckpt: str,
     dyn_ckpt: str,
-    out_dir: str,
     start: int,
     horizon: int,
     context: int,
@@ -261,13 +365,12 @@ def run_rollout(
     model_type: str = "transformer",
     use_kv_cache: bool = True,
     mask_steps: int = 8,
-    view: str = "density",
     stats_path: Optional[str] = None,
     tokenizer_arch: str = "conv",
     patch_size: int = 4,
     model_dim: int = 256,
     num_blocks: int = 6,
-    num_heads: int = 8,
+    num_heads_tok: int = 8,
     tokenizer_dropout: float = 0.0,
     codebook_dropout: float = 0.0,
     use_lam: bool = False,
@@ -282,9 +385,8 @@ def run_rollout(
     lam_codebook_dropout: float = 0.0,
     bos_token_id: int = 0,
     rng_seed: int = 0,
-) -> None:
-    out = ensure_dir(Path(out_dir))
-
+    view: str = "density",
+) -> tuple[np.ndarray, np.ndarray, dict]:
     data = np.load(npz_path, allow_pickle=True)
     fields = data["fields"]  # [T,H,W,C]
     T, H, W, C = fields.shape
@@ -303,7 +405,7 @@ def run_rollout(
         patch_size=patch_size,
         model_dim=model_dim,
         num_blocks=num_blocks,
-        num_heads=num_heads,
+        num_heads=num_heads_tok,
         dropout=tokenizer_dropout,
         codebook_dropout=codebook_dropout,
     )
@@ -320,10 +422,8 @@ def run_rollout(
         mean = None
         std = None
 
-    x0 = jnp.array(fields[start][None, ...], dtype=jnp.float32)
-    if mean is not None:
-        x0 = (x0 - mean) / (std + 1e-6)
-    tok0 = vq_encode_tokens(vq_params, x0)  # [1,h,w]
+    x0 = jnp.array(_norm(fields[start][None, ...], mean, std), dtype=jnp.float32)
+    tok0 = vq_encode_tokens(vq_params, x0)
     h_tok, w_tok = int(tok0.shape[1]), int(tok0.shape[2])
     L_in = context * h_tok * w_tok
     L_out = h_tok * w_tok
@@ -344,11 +444,7 @@ def run_rollout(
         tok_seq0 = jnp.concatenate(
             [jnp.repeat(tok0[:, None, ...], context, axis=1), tok0[:, None, ...]], axis=1
         )
-        dyn_init = dyn_model.init(
-            rng,
-            {"video_tokens": tok_seq0, "mask_rng": mask_rng},
-            training=False,
-        )["params"]
+        dyn_init = dyn_model.init(rng, {"video_tokens": tok_seq0, "mask_rng": mask_rng}, training=False)["params"]
         dyn_params = load_params(dyn_ckpt, dyn_init)
     else:
         vocab_size = codebook_size + (1 if model_type == "maskgit" else 0)
@@ -368,16 +464,8 @@ def run_rollout(
         codebook = None
         dec_params = None
 
-    ctx_frames = fields[start : start + context]  # [context,H,W,C]
+    ctx_frames = fields[start : start + context]
     ctx_tok = encode_context_tokens(vq_encode_tokens, vq_params, ctx_frames, mean, std)
-
-    def flatten_ctx(tok_ctx: jnp.ndarray) -> jnp.ndarray:
-        return tok_ctx.reshape((tok_ctx.shape[0], -1))
-
-    def unflatten_grid(tok_flat: jnp.ndarray) -> jnp.ndarray:
-        return tok_flat.reshape((tok_flat.shape[0], h_tok, w_tok))
-
-    gt = fields[start + context : start + context + horizon]  # [horizon,H,W,C]
 
     lam_model = None
     lam_params = None
@@ -403,9 +491,13 @@ def run_rollout(
         )["params"]
         lam_params = load_params(lam_ckpt, lam_init)
 
-    ctx_frames_dyn = fields[start : start + context]  # [context,H,W,C]
-    if mean is not None:
-        ctx_frames_dyn = (ctx_frames_dyn - mean) / (std + 1e-6)
+    ctx_frames_dyn = _norm(fields[start : start + context], mean, std)
+
+    def flatten_ctx(tok_ctx: jnp.ndarray) -> jnp.ndarray:
+        return tok_ctx.reshape((tok_ctx.shape[0], -1))
+
+    def unflatten_grid(tok_flat: jnp.ndarray) -> jnp.ndarray:
+        return tok_flat.reshape((tok_flat.shape[0], h_tok, w_tok))
 
     def rollout_step(tok_ctx, _):
         tok_in = flatten_ctx(tok_ctx).astype(jnp.int32)
@@ -434,7 +526,7 @@ def run_rollout(
                     dyn_params,
                     tok_in,
                     L_out=L_out,
-                    vocab=vocab_size,
+                    vocab=codebook_size + 1,
                     mask_token_id=codebook_size,
                     mask_steps=mask_steps,
                 )
@@ -452,11 +544,8 @@ def run_rollout(
         new_tok_ctx = jnp.concatenate([tok_ctx[:, 1:], tok_next[:, None, :, :]], axis=1)
         return new_tok_ctx, tok_next
 
-    # If using KV cache, fall back to Python loop (not JIT-friendly).
     if model_type == "transformer" and use_kv_cache:
-        tok_ctx = ctx_tok
-        tok_preds = []
-        for _ in tqdm(range(horizon), desc="rollout"):
+        def rollout_cached_step(tok_ctx, _):
             tok_in = flatten_ctx(tok_ctx).astype(jnp.int32)
             tok_next_flat = rollout_tokens_autoregressive_cached(
                 dyn_model,
@@ -467,9 +556,10 @@ def run_rollout(
                 rng_seed=rng_seed,
             )
             tok_next = unflatten_grid(tok_next_flat)
-            tok_preds.append(tok_next[0])
-            tok_ctx = jnp.concatenate([tok_ctx[:, 1:], tok_next[:, None, :, :]], axis=1)
-        tok_preds = jnp.stack(tok_preds, axis=0)
+            new_tok_ctx = jnp.concatenate([tok_ctx[:, 1:], tok_next[:, None, :, :]], axis=1)
+            return new_tok_ctx, tok_next
+
+        _, tok_preds = jax.jit(lambda tc: jax.lax.scan(rollout_cached_step, tc, None, length=horizon))(ctx_tok)
     else:
         _, tok_preds = jax.jit(lambda tc: jax.lax.scan(rollout_step, tc, None, length=horizon))(ctx_tok)
 
@@ -480,64 +570,99 @@ def run_rollout(
             x_hat = st_decode_tokens(vq_model, vq_params, tok_next, (H, W))
         else:
             x_hat = vq_decode_tokens(vq_cfg, dec_params, codebook, tok_next, out_channels=C)
-        if mean is not None:
-            x_hat = x_hat * (std + 1e-6) + mean
+        x_hat = _denorm(x_hat, mean, std)
         preds.append(np.array(x_hat[0]))
 
     preds = np.stack(preds, axis=0)
+    gt = fields[start + context : start + context + horizon]
+    metrics = compute_rollout_metrics(gt, preds, view=view)
+    return gt, preds, metrics
 
-    frames = []
-    for k in range(horizon):
-        gt_k = gt[k]
-        pr_k = preds[k]
 
-        if view == "density" and C >= 3:
-            w_gt = gt_k[..., 2]
-            w_pr = pr_k[..., 2]
-            err = np.abs(w_pr - w_gt)
-            title = "Density"
-        elif view == "speed" and C >= 2:
-            w_gt = np.sqrt(gt_k[..., 0] ** 2 + gt_k[..., 1] ** 2)
-            w_pr = np.sqrt(pr_k[..., 0] ** 2 + pr_k[..., 1] ** 2)
-            err = np.abs(w_pr - w_gt)
-            title = "Speed"
-        elif view == "vorticity" and C >= 2:
-            w_gt = vorticity_from_uv(gt_k[..., :2])
-            w_pr = vorticity_from_uv(pr_k[..., :2])
-            err = np.abs(w_pr - w_gt)
-            title = "Vorticity"
-        else:
-            w_gt = gt_k[..., 0]
-            w_pr = pr_k[..., 0]
-            err = np.abs(w_pr - w_gt)
-            title = "Channel0"
+def run_rollout(
+    npz_path: str,
+    vq_ckpt: str,
+    dyn_ckpt: str,
+    out_dir: str,
+    start: int,
+    horizon: int,
+    context: int,
+    codebook_size: int,
+    embed_dim: int,
+    hidden: int,
+    d_model: int,
+    n_heads: int,
+    n_layers: int,
+    dropout: float,
+    model_type: str = "transformer",
+    use_kv_cache: bool = True,
+    mask_steps: int = 8,
+    view: str = "density",
+    stats_path: Optional[str] = None,
+    tokenizer_arch: str = "conv",
+    patch_size: int = 4,
+    model_dim: int = 256,
+    num_blocks: int = 6,
+    num_heads: int = 8,
+    num_heads_tok: Optional[int] = None,
+    tokenizer_dropout: float = 0.0,
+    codebook_dropout: float = 0.0,
+    use_lam: bool = False,
+    lam_ckpt: str = "",
+    lam_model_dim: int = 256,
+    lam_latent_dim: int = 64,
+    lam_num_latents: int = 128,
+    lam_patch_size: int = 4,
+    lam_num_blocks: int = 6,
+    lam_num_heads: int = 8,
+    lam_dropout: float = 0.0,
+    lam_codebook_dropout: float = 0.0,
+    bos_token_id: int = 0,
+    rng_seed: int = 0,
+) -> None:
+    out = ensure_dir(Path(out_dir))
+    if num_heads_tok is None:
+        num_heads_tok = num_heads
 
-        fig = plt.figure(figsize=(9, 3))
-        ax1 = fig.add_subplot(1, 3, 1)
-        ax1.imshow(w_gt)
-        ax1.set_title(f"GT {title} (t={k})")
-        ax1.axis("off")
+    gt, preds, metrics = run_rollout_generator(
+        npz_path=npz_path,
+        vq_ckpt=vq_ckpt,
+        dyn_ckpt=dyn_ckpt,
+        start=start,
+        horizon=horizon,
+        context=context,
+        codebook_size=codebook_size,
+        embed_dim=embed_dim,
+        hidden=hidden,
+        d_model=d_model,
+        n_heads=n_heads,
+        n_layers=n_layers,
+        dropout=dropout,
+        model_type=model_type,
+        use_kv_cache=use_kv_cache,
+        mask_steps=mask_steps,
+        stats_path=stats_path,
+        tokenizer_arch=tokenizer_arch,
+        patch_size=patch_size,
+        model_dim=model_dim,
+        num_blocks=num_blocks,
+        num_heads_tok=num_heads_tok,
+        tokenizer_dropout=tokenizer_dropout,
+        codebook_dropout=codebook_dropout,
+        use_lam=use_lam,
+        lam_ckpt=lam_ckpt,
+        lam_model_dim=lam_model_dim,
+        lam_latent_dim=lam_latent_dim,
+        lam_num_latents=lam_num_latents,
+        lam_patch_size=lam_patch_size,
+        lam_num_blocks=lam_num_blocks,
+        lam_num_heads=lam_num_heads,
+        lam_dropout=lam_dropout,
+        lam_codebook_dropout=lam_codebook_dropout,
+        bos_token_id=bos_token_id,
+        rng_seed=rng_seed,
+        view=view,
+    )
 
-        ax2 = fig.add_subplot(1, 3, 2)
-        ax2.imshow(w_pr)
-        ax2.set_title(f"Rollout {title}")
-        ax2.axis("off")
-
-        ax3 = fig.add_subplot(1, 3, 3)
-        ax3.imshow(err)
-        ax3.set_title(f"Abs error {title}")
-        ax3.axis("off")
-
-        fig.tight_layout()
-        fig.canvas.draw()
-        buf = np.asarray(fig.canvas.buffer_rgba())
-        img = np.array(buf)[..., :3]
-        plt.close(fig)
-        frames.append(img)
-
-    out_gif = out / f"gt_vs_rollout_{horizon}.gif"
-    imageio.mimsave(out_gif, frames, duration=0.12)
-    np.savez_compressed(out / "rollout_arrays.npz", gt=gt, pred=preds)
-
-    print("Saved:", out_gif)
-    print(f"Token grid: {h_tok}x{w_tok} | context={context} | horizon={horizon} | max_len={max_len}")
+    np.savez_compressed(out / "rollout_arrays.npz", gt=gt, pred=preds, metrics=metrics)
+    visualize_rollout(gt, preds, out, view=view)
