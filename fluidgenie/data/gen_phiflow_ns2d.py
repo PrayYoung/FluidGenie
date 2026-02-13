@@ -19,6 +19,7 @@ from jaxtyping import Array, Float
 
 import numpy as np
 import tyro
+from tqdm import tqdm
 
 from phi.jax.flow import *  # noqa: F401,F403
 from configs.gen_data_configs import NS2DConfig, GenDataArgs
@@ -196,7 +197,7 @@ def generate_dataset(out_dir: str, episodes: int = 10, cfg: Optional[NS2DConfig]
     out_dir = Path(out_dir)
     cfg = cfg or NS2DConfig()
 
-    for i in range(episodes):
+    for i in tqdm(range(episodes), desc="episodes"):
         ep_cfg = NS2DConfig(**asdict(cfg))
         ep_cfg.seed = cfg.seed + i
         fields, meta = generate_episode(ep_cfg)
