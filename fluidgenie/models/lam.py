@@ -62,7 +62,7 @@ class LatentActionModel(nn.Module):
         )
         del outputs["patches"]
 
-        video_recon = self.decoder(video_action_patches)
+        video_recon = self.decoder(video_action_patches, training=training)
         outputs["recon"] = unpatchify(video_recon, self.patch_size, h, w)
         return outputs
 
@@ -72,7 +72,7 @@ class LatentActionModel(nn.Module):
         action_pad = jnp.broadcast_to(self.action_in, (b, t, 1, self.patch_token_dim))
         padded_patches = jnp.concatenate((action_pad, patches), axis=2)
 
-        z = self.encoder(padded_patches)
+        z = self.encoder(padded_patches, training=training)
         z = z[:, 1:, 0]  # (B, T-1, E)
 
         z = z.reshape(b * (t - 1), self.latent_dim)

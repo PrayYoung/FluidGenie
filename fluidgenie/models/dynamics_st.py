@@ -71,5 +71,5 @@ class DynamicsSTMaskGIT(nn.Module):
                 act_embed = act_embed[:, :, None, :]
             vid_embed += jnp.pad(act_embed, ((0, 0), (1, 0), (0, 0), (0, 0)))
 
-        logits = self.dynamics(vid_embed)
+        logits = self.dynamics(vid_embed, training=training)
         return dict(token_logits=logits, mask=mask)

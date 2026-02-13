@@ -50,7 +50,7 @@ class TokenizerSTVQVAE(nn.Module):
     ) -> Dict[str, Array]:
         h, w = batch["videos"].shape[2:4]
         outputs = self.vq_encode(batch["videos"], training)
-        recon = self.decoder(outputs["z_q"])
+        recon = self.decoder(outputs["z_q"], training=training)
         outputs["recon"] = unpatchify(recon, self.patch_size, h, w)
         return outputs
 
@@ -58,7 +58,7 @@ class TokenizerSTVQVAE(nn.Module):
         b, t = videos.shape[:2]
         x = patchify(videos, self.patch_size)
         n = x.shape[2]
-        x = self.encoder(x)
+        x = self.encoder(x, training=training)
 
         x = x.reshape(b * t * n, self.latent_dim)
         z_q, z, emb, indices = self.vq(x, training)
@@ -66,11 +66,13 @@ class TokenizerSTVQVAE(nn.Module):
         indices = indices.reshape(b, t, n)
         return dict(z_q=z_q, z=z, emb=emb, indices=indices)
 
-    def encode_frame(self, x: Float[Array, "b h w c"]) -> Int[Array, "b h2 w2"]:
+    def encode_frame(
+        self, x: Float[Array, "b h w c"], training: bool = False
+    ) -> Int[Array, "b h2 w2"]:
         # x: [B,H,W,C] -> tokens [B,h,w]
         b, h, w, c = x.shape
         x = x[:, None, ...]
-        tokens = self.vq_encode(x, training=False)["indices"]  # [B,1,N]
+        tokens = self.vq_encode(x, training=training)["indices"]  # [B,1,N]
         h_pad = -h % self.patch_size
         w_pad = -w % self.patch_size
         hn = (h + h_pad) // self.patch_size
@@ -83,5 +85,5 @@ class TokenizerSTVQVAE(nn.Module):
         # indices: [B,h,w]
         b, h, w = indices.shape
         z = self.vq.get_codes(indices.reshape(b, 1, h * w))
-        recon = self.decoder(z)
+        recon = self.decoder(z, training=False)
         return unpatchify(recon, self.patch_size, *video_hw)

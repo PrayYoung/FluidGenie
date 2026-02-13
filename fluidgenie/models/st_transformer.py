@@ -28,7 +28,7 @@ class STBlock(nn.Module):
 
     @nn.remat
     @nn.compact
-    def __call__(self, x: Float[Array, "b t n d"]) -> Float[Array, "b t n d"]:
+    def __call__(self, x: Float[Array, "b t n d"], training: bool) -> Float[Array, "b t n d"]:
         # Spatial attention over patches
         z = PositionalEncoding(self.dim)(x)
         z = nn.LayerNorm()(z)
@@ -36,6 +36,7 @@ class STBlock(nn.Module):
             num_heads=self.num_heads,
             qkv_features=self.dim,
             dropout_rate=self.dropout,
+            deterministic=not training,
         )(z)
         x = x + z
 
@@ -48,6 +49,7 @@ class STBlock(nn.Module):
             num_heads=self.num_heads,
             qkv_features=self.dim,
             dropout_rate=self.dropout,
+            deterministic=not training,
         )(z, mask=causal_mask)
         x = x + z
         x = x.swapaxes(1, 2)
@@ -68,12 +70,14 @@ class STTransformer(nn.Module):
     dropout: float
 
     @nn.compact
-    def __call__(self, x: Float[Array, "b t n d_in"]) -> Float[Array, "b t n d_out"]:
+    def __call__(
+        self, x: Float[Array, "b t n d_in"], training: bool
+    ) -> Float[Array, "b t n d_out"]:
         x = nn.Sequential([nn.LayerNorm(), nn.Dense(self.model_dim), nn.LayerNorm()])(x)
         for _ in range(self.num_blocks):
             x = STBlock(
                 dim=self.model_dim, num_heads=self.num_heads, dropout=self.dropout
-            )(x)
+            )(x, training=training)
         return nn.Dense(self.out_dim)(x)
 
 
@@ -94,7 +98,7 @@ class VectorQuantizer(nn.Module):
                 (self.num_latents, self.latent_dim),
             )
         )
-        self.drop = nn.Dropout(self.dropout, deterministic=False)
+        self.drop = nn.Dropout(self.dropout)
 
     def __call__(
         self, x: Float[Array, "b d"], training: bool
@@ -108,7 +112,7 @@ class VectorQuantizer(nn.Module):
         codebook = normalize(self.codebook)
         distance = -jnp.matmul(x, codebook.T)
         if training:
-            distance = self.drop(distance)
+            distance = self.drop(distance, deterministic=False)
 
         indices = jnp.argmin(distance, axis=-1)
         z = self.codebook[indices]
