@@ -5,15 +5,13 @@ from typing import Any
 
 from flax.serialization import from_bytes
 from orbax.checkpoint import PyTreeCheckpointer
-from orbax.checkpoint import utils as orbax_utils
 
 
 def save_params(out_dir: Path, name: str, params: Any) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
-    ckpt_path = out_dir / name
+    ckpt_path = (out_dir / name).resolve()
     checkpointer = PyTreeCheckpointer()
-    save_args = orbax_utils.save_args_from_target(params)
-    checkpointer.save(ckpt_path, params, save_args=save_args, force=True)
+    checkpointer.save(ckpt_path, params, force=True)
     return ckpt_path
 
 
