@@ -30,7 +30,7 @@ class TokenizerConfig:
     dropout: float = 0.0
     codebook_dropout: float = 0.0
     seq_len: int = 2
-    grain_workers: int = 1
+    grain_workers: int = 8
 
 
 @dataclass
@@ -63,7 +63,7 @@ class DynamicsConfig:
     mask_schedule: str = "cosine"
     mask_steps: int = 8
     bos_token_id: int = 0
-    grain_workers: int = 1
+    grain_workers: int = 8
 
     # Optional LAM conditioning for spatial-temporal dynamics
     use_lam: bool = False
