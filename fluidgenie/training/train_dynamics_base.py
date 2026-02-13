@@ -10,9 +10,9 @@ This script:
 
 Run (example):
   uv run python -m fluidgenie.training.train_dynamics_base \
-    --data data/ns2d \
-    --vq_ckpt runs/vq/latest \
-    --out runs/dyn \
+    --data data/raw/ns2d \
+    --vq_ckpt runs/tokenizer/base/latest \
+    --out runs/dynamics/base \
     --steps 20000 \
     --batch 4 \
     --context 2 \

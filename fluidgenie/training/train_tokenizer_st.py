@@ -3,8 +3,8 @@ Train ST-VQVAE tokenizer (Jafar-style) on fluid sequences.
 
 Run:
   uv run python -m fluidgenie.training.train_tokenizer_st \
-    --data data/ns2d \
-    --out runs/vq_st \
+    --data data/raw/ns2d \
+    --out runs/tokenizer/st \
     --seq-len 4
 """
 

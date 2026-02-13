@@ -34,29 +34,29 @@ uv sync
 
 # 1) Generate data
 uv run python -m fluidgenie.data.gen_phiflow_ns2d \
-  --out data/ns2d \
+  --out data/raw/ns2d \
   --episodes 50 \
   --steps 120
 
 # 2) Train tokenizer (Conv VQ)
 uv run python -m fluidgenie.training.train_tokenizer_base \
-  --data data/ns2d \
-  --out runs/vq
+  --data data/raw/ns2d \
+  --out runs/tokenizer/base
 
 # 3) Train dynamics (AR)
 uv run python -m fluidgenie.training.train_dynamics_base \
-  --data data/ns2d \
-  --vq-ckpt runs/vq/latest \
-  --out runs/dyn \
+  --data data/raw/ns2d \
+  --vq-ckpt runs/tokenizer/base/latest \
+  --out runs/dynamics/base \
   --model transformer
 
 # 4) Rollout
 uv run python -m fluidgenie.cli.demo \
   --mode rollout \
-  --npz data/ns2d/episode_000000.npz \
-  --vq-ckpt runs/vq/latest \
-  --dyn-ckpt runs/dyn/latest \
-  --out demo/rollout
+  --npz data/raw/ns2d/episode_000000.npz \
+  --vq-ckpt runs/tokenizer/base/latest \
+  --dyn-ckpt runs/dynamics/base/latest \
+  --out demo/rollout/base
 ```
 
 ---
@@ -66,26 +66,26 @@ uv run python -m fluidgenie.cli.demo \
 ### Tokenizer
 ```bash
 uv run python -m fluidgenie.training.train_tokenizer_base \
-  --data data/ns2d \
-  --out runs/vq \
-  --stats data/ns2d_stats.npz
+  --data data/raw/ns2d \
+  --out runs/tokenizer/base \
+  --stats data/stats/ns2d_stats.npz
 ```
 
 ### Dynamics (AR)
 ```bash
 uv run python -m fluidgenie.training.train_dynamics_base \
-  --data data/ns2d \
-  --vq-ckpt runs/vq/latest \
-  --out runs/dyn \
+  --data data/raw/ns2d \
+  --vq-ckpt runs/tokenizer/base/latest \
+  --out runs/dynamics/base \
   --model transformer
 ```
 
 ### Dynamics (MaskGIT)
 ```bash
 uv run python -m fluidgenie.training.train_dynamics_base \
-  --data data/ns2d \
-  --vq-ckpt runs/vq/latest \
-  --out runs/dyn_maskgit \
+  --data data/raw/ns2d \
+  --vq-ckpt runs/tokenizer/base/latest \
+  --out runs/dynamics/base_maskgit \
   --model maskgit
 ```
 
@@ -96,24 +96,24 @@ uv run python -m fluidgenie.training.train_dynamics_base \
 ### ST Tokenizer
 ```bash
 uv run python -m fluidgenie.training.train_tokenizer_st \
-  --data data/ns2d \
-  --out runs/vq_st \
+  --data data/raw/ns2d \
+  --out runs/tokenizer/st \
   --seq-len 4
 ```
 
 ### ST Dynamics
 ```bash
 uv run python -m fluidgenie.training.train_dynamics_st \
-  --data data/ns2d \
-  --vq-ckpt runs/vq_st/latest \
-  --out runs/dyn_st \
+  --data data/raw/ns2d \
+  --vq-ckpt runs/tokenizer/st/latest \
+  --out runs/dynamics/st \
   --model st_maskgit
 ```
 
 ### Optional LAM
 ```bash
 uv run python -m fluidgenie.training.train_lam \
-  --data data/ns2d \
+  --data data/raw/ns2d \
   --out runs/lam \
   --seq-len 8
 ```
@@ -121,9 +121,9 @@ uv run python -m fluidgenie.training.train_lam \
 ### ST Dynamics + LAM
 ```bash
 uv run python -m fluidgenie.training.train_dynamics_st \
-  --data data/ns2d \
-  --vq-ckpt runs/vq_st/latest \
-  --out runs/dyn_st_lam \
+  --data data/raw/ns2d \
+  --vq-ckpt runs/tokenizer/st/latest \
+  --out runs/dynamics/st_lam \
   --model st_maskgit \
   --use-lam True \
   --lam-ckpt runs/lam/latest
@@ -137,9 +137,9 @@ uv run python -m fluidgenie.training.train_dynamics_st \
 ```bash
 uv run python -m fluidgenie.cli.demo \
   --mode tokenizer \
-  --npz data/ns2d/episode_000000.npz \
-  --vq-ckpt runs/vq/latest \
-  --out demo/tokenizer \
+  --npz data/raw/ns2d/episode_000000.npz \
+  --vq-ckpt runs/tokenizer/base/latest \
+  --out demo/tokenizer/base \
   --view density
 ```
 
@@ -147,10 +147,10 @@ uv run python -m fluidgenie.cli.demo \
 ```bash
 uv run python -m fluidgenie.cli.demo \
   --mode rollout \
-  --npz data/ns2d/episode_000000.npz \
-  --vq-ckpt runs/vq_st/latest \
-  --dyn-ckpt runs/dyn_st/latest \
-  --out demo/rollout_st \
+  --npz data/raw/ns2d/episode_000000.npz \
+  --vq-ckpt runs/tokenizer/st/latest \
+  --dyn-ckpt runs/dynamics/st/latest \
+  --out demo/rollout/st \
   --model st_maskgit \
   --tokenizer-arch st
 ```
@@ -158,8 +158,8 @@ uv run python -m fluidgenie.cli.demo \
 ### Codebook Usage (collapse check)
 ```bash
 uv run python -m fluidgenie.cli.eval_codebook \
-  --data data/ns2d \
-  --vq-ckpt runs/vq/latest
+  --data data/raw/ns2d \
+  --vq-ckpt runs/tokenizer/base/latest
 ```
 
 ---
@@ -167,8 +167,8 @@ uv run python -m fluidgenie.cli.eval_codebook \
 ## Optional: Normalization Stats
 ```bash
 uv run python -m fluidgenie.data.compute_stats \
-  --data data/ns2d \
-  --out data/ns2d_stats.npz
+  --data data/raw/ns2d \
+  --out data/stats/ns2d_stats.npz
 ```
 
 ---
@@ -182,5 +182,5 @@ uv run python -m fluidgenie.data.compute_stats \
 
 ## Notes
 - `tokenizer-arch` can be `conv` or `st`.
-- Checkpoints are saved as **directories** with Orbax (e.g. `runs/vq/latest`).
+- Checkpoints are saved as **directories** with Orbax (e.g. `runs/tokenizer/base/latest`).
 - Old `.ckpt` files are still loadable.

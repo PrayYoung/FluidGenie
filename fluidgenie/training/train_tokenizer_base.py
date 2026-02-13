@@ -6,8 +6,8 @@ This trains a frame-level VQ-VAE:
 
 Run:
   uv run python -m fluidgenie.training.train_tokenizer_base \
-    --data data/ns2d_test \
-    --out runs/vq \
+    --data data/raw/ns2d \
+    --out runs/tokenizer/base \
     --steps 2000
 """
 

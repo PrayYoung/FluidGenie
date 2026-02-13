@@ -3,9 +3,9 @@ Train spatial-temporal MaskGIT dynamics (ST pipeline).
 
 Run:
   uv run python -m fluidgenie.training.train_dynamics_st \
-    --data data/ns2d \
-    --vq-ckpt runs/vq/latest \
-    --out runs/dyn_st \
+    --data data/raw/ns2d \
+    --vq-ckpt runs/tokenizer/st/latest \
+    --out runs/dynamics/st \
     --use-lam False
 """
 

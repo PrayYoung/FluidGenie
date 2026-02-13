@@ -26,7 +26,7 @@ class NS2DConfig:
 
 @dataclass
 class GenDataArgs:
-    out: str = "data/ns2d"
+    out: str = "data/raw/ns2d"
     episodes: int = 200
     prefix: str = "episode"
     steps: int = 120

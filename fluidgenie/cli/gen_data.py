@@ -6,7 +6,7 @@ This CLI matches the current NS2DConfig fields in:
 
 Example:
   uv run python -m fluidgenie.cli.gen_data \
-    --out data/ns2d \
+    --out data/raw/ns2d \
     --episodes 200 \
     --steps 200 \
     --res 128 \

@@ -3,7 +3,7 @@ Train Latent Action Model (LAM) on fluid sequences.
 
 Run:
   uv run python -m fluidgenie.training.train_lam \
-    --data data/ns2d \
+    --data data/raw/ns2d \
     --out runs/lam \
     --steps 20000 \
     --seq-len 8
