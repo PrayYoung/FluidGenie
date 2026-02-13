@@ -40,8 +40,7 @@ def save_tokenizer_recon(
 ) -> None:
     out = ensure_dir(Path(out_dir))
 
-    data = np.load(npz_path, allow_pickle=True)
-    fields: Float[Array, "t h w c"] = data["fields"]  # [T,H,W,C]
+    fields: Float[Array, "t h w c"] = np.load(npz_path, mmap_mode="r")  # [T,H,W,C]
     x = fields[frame]        # [H,W,C]
     H, W, C = x.shape
 

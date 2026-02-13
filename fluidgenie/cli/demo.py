@@ -10,7 +10,7 @@ Examples:
 # 1) Tokenizer recon (requires VQ ckpt)
 uv run python -m fluidgenie.cli.demo \
   --mode tokenizer \
-  --npz data/raw/ns2d/episode_000000.npz \
+  --npz data/raw/ns2d/episode_000000.npy \
   --vq_ckpt runs/tokenizer/base/latest \
   --out demo/tokenizer/base \
   --frame 0 \
@@ -19,7 +19,7 @@ uv run python -m fluidgenie.cli.demo \
 # 2) Rollout GIF (requires VQ ckpt + Dynamics ckpt)
 uv run python -m fluidgenie.cli.demo \
   --mode rollout \
-  --npz data/raw/ns2d/episode_000000.npz \
+  --npz data/raw/ns2d/episode_000000.npy \
   --vq_ckpt runs/tokenizer/base/latest \
   --dyn_ckpt runs/dynamics/base/latest \
   --out demo/rollout/base \

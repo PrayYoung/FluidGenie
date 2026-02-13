@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from dataclasses import asdict
 from pathlib import Path
 from typing import Optional, Tuple, Dict, Any
+import json
 
 from jaxtyping import Array, Float
 
@@ -188,9 +189,11 @@ def generate_episode(cfg: NS2DConfig) -> Tuple[Float[Array, "t h w c"], Dict[str
     return fields, meta
 
 
-def save_episode_npz(out_path: Path, fields: Float[Array, "t h w c"], meta: Dict[str, Any]) -> None:
+def save_episode_npy(out_path: Path, fields: Float[Array, "t h w c"], meta: Dict[str, Any]) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(out_path, fields=fields, meta=meta)
+    np.save(out_path, fields)
+    meta_path = out_path.with_suffix(".json")
+    meta_path.write_text(json.dumps(meta, indent=2, sort_keys=True))
 
 
 def generate_dataset(out_dir: str, episodes: int = 10, cfg: Optional[NS2DConfig] = None, name_prefix: str = "episode"):
@@ -201,7 +204,7 @@ def generate_dataset(out_dir: str, episodes: int = 10, cfg: Optional[NS2DConfig]
         ep_cfg = NS2DConfig(**asdict(cfg))
         ep_cfg.seed = cfg.seed + i
         fields, meta = generate_episode(ep_cfg)
-        save_episode_npz(out_dir / f"{name_prefix}_{i:06d}.npz", fields, meta)
+        save_episode_npy(out_dir / f"{name_prefix}_{i:06d}.npy", fields, meta)
 
 
 def main():
@@ -218,7 +221,7 @@ def main():
         init_velocity_noise=args.noise,
     )
     generate_dataset(args.out, episodes=args.episodes, cfg=cfg)
-    print(f"Wrote {args.out}/*.npz")
+    print(f"Wrote {args.out}/*.npy")
 
 
 if __name__ == "__main__":

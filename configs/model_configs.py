@@ -100,4 +100,4 @@ class LAMConfig:
     num_heads: int = 8
     dropout: float = 0.0
     codebook_dropout: float = 0.0
-    grain_workers: int = 1
+    grain_workers: int = 8

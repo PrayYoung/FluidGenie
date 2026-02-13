@@ -402,8 +402,7 @@ def run_rollout_generator(
     rng_seed: int = 0,
     view: str = "density",
 ) -> tuple[Float[Array, "t h w c"], Float[Array, "t h w c"], dict]:
-    data = np.load(npz_path, allow_pickle=True)
-    fields: Float[Array, "t h w c"] = data["fields"]  # [T,H,W,C]
+    fields: Float[Array, "t h w c"] = np.load(npz_path, mmap_mode="r")  # [T,H,W,C]
     T, H, W, C = fields.shape
 
     if start + context + horizon >= T:

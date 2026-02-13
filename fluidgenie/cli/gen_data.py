@@ -1,5 +1,5 @@
 """
-CLI: generate fluid dataset with PhiFlow NS2D generator (NPZ episodes).
+CLI: generate fluid dataset with PhiFlow NS2D generator (NPY episodes).
 
 This CLI matches the current NS2DConfig fields in:
   fluidgenie/data/gen_phiflow_ns2d.py

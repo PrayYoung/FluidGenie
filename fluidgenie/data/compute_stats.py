@@ -30,15 +30,15 @@ def update_running_mean_var(
 
 
 def compute_stats(data_dir: str) -> tuple[Float[Array, "c"], Float[Array, "c"]]:
-    files = sorted(glob.glob(os.path.join(data_dir, "*.npz")))
-    assert files, f"No npz found in {data_dir}"
+    files = sorted(glob.glob(os.path.join(data_dir, "*.npy")))
+    assert files, f"No npy found in {data_dir}"
 
     mean = None
     var = None
     count = 0
 
     for f in files:
-        fields = np.load(f)["fields"]  # [T,H,W,C]
+        fields = np.load(f, mmap_mode="r")  # [T,H,W,C]
         x = fields.astype(np.float64)
         # flatten T,H,W but keep C
         x = x.reshape(-1, x.shape[-1])

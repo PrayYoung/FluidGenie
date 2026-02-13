@@ -8,8 +8,8 @@ from jaxtyping import Array, Float
 
 class NPZSequenceDataset:
     def __init__(self, data_dir: str, context: int = 2, pred: int = 1, stats_path: str | None = None):
-        self.files = sorted(glob.glob(os.path.join(data_dir, "*.npz")))
-        assert self.files, f"No npz found in {data_dir}"
+        self.files = sorted(glob.glob(os.path.join(data_dir, "*.npy")))
+        assert self.files, f"No npy found in {data_dir}"
         self.context = context
         self.pred = pred
         self.mean = None
@@ -23,10 +23,10 @@ class NPZSequenceDataset:
         self.index = []
         for i, f in enumerate(self.files):
             try:
-                with np.load(f, mmap_mode="r") as data:
-                    T = data["fields"].shape[0]
+                data = np.load(f, mmap_mode="r")
+                T = data.shape[0]
             except Exception:
-                raise ValueError(f"Error loading {f}. Ensure it contains a 'fields' array with shape [T,H,W,C].")
+                raise ValueError(f"Error loading {f}. Ensure it is a .npy array with shape [T,H,W,C].")
             # need context frames + pred frames
             for t in range(0, T - (context + pred) + 1):
                 self.index.append((i, t))
@@ -38,8 +38,7 @@ class NPZSequenceDataset:
         self, idx: int
     ) -> Tuple[Float[Array, "context h w c"], Float[Array, "pred h w c"]]:
         file_idx, t = self.index[idx]
-        data = np.load(self.files[file_idx])
-        fields = data["fields"]  # [T,H,W,C]
+        fields = np.load(self.files[file_idx], mmap_mode="r")
         x = fields[t : t + self.context]          # [context,H,W,C]
         y = fields[t + self.context : t + self.context + self.pred]  # [pred,H,W,C]
         x = x.astype(np.float32)

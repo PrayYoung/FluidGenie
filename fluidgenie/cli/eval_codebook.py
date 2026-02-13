@@ -19,11 +19,11 @@ from configs.eval_configs import EvalCodebookArgs
 def main() -> None:
     args = tyro.cli(EvalCodebookArgs)
 
-    files = sorted(glob.glob(os.path.join(args.data, "*.npz")))[: args.episodes]
+    files = sorted(glob.glob(os.path.join(args.data, "*.npy")))[: args.episodes]
     if not files:
-        raise FileNotFoundError(f"No npz files found in {args.data}")
+        raise FileNotFoundError(f"No npy files found in {args.data}")
 
-    sample: Float[Array, "h w c"] = np.load(files[0])["fields"][0]
+    sample: Float[Array, "h w c"] = np.load(files[0], mmap_mode="r")[0]
     H, W, C = sample.shape
 
     rng = jax.random.PRNGKey(args.seed)
@@ -76,7 +76,7 @@ def main() -> None:
 
     all_tok = []
     for f in files:
-        fields = np.load(f)["fields"]
+        fields = np.load(f, mmap_mode="r")
         frames = fields[: args.frames]
         tok = encode(frames)
         all_tok.append(tok.reshape(-1))

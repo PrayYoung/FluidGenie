@@ -9,9 +9,8 @@ from matplotlib.animation import FuncAnimation
 from jaxtyping import Array, Float
 
 
-def visualize_npz(path: Path, interval: int = 60, save_path: Path | None = None) -> None:
-    data = np.load(path, allow_pickle=True)
-    fields: Float[Array, "t h w c"] = data["fields"]  # [T,H,W,C]
+def visualize_npy(path: Path, interval: int = 60, save_path: Path | None = None) -> None:
+    fields: Float[Array, "t h w c"] = np.load(path, mmap_mode="r")  # [T,H,W,C]
 
     u = fields[..., 0]
     v = fields[..., 1]
@@ -56,7 +55,7 @@ def visualize_npz(path: Path, interval: int = 60, save_path: Path | None = None)
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Visualize generated NS2D episode(s).")
-    parser.add_argument("files", nargs="+", help="One or more .npz episode file paths.")
+    parser.add_argument("files", nargs="+", help="One or more .npy episode file paths.")
     parser.add_argument("--interval", type=int, default=60, help="Animation frame interval (ms).")
     parser.add_argument("--save", type=str, default="", help="Output path (.gif or .mp4).")
     args = parser.parse_args()
@@ -66,7 +65,7 @@ def main() -> None:
         path = Path(file_name)
         if not path.exists():
             raise FileNotFoundError(f"File not found: {path}")
-        visualize_npz(path, interval=args.interval, save_path=save_path)
+        visualize_npy(path, interval=args.interval, save_path=save_path)
 
 
 if __name__ == "__main__":
