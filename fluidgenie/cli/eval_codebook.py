@@ -10,7 +10,7 @@ import jax.numpy as jnp
 import tyro
 from jaxtyping import Array, Float, Int
 
-from fluidgenie.models.vq_tokenizer import VQVAE, VQConfig
+from fluidgenie.models.base_tokenizer import VQVAE, VQConfig
 from fluidgenie.models.tokenizer_st import TokenizerSTVQVAE
 from fluidgenie.training.checkpoint_utils import load_params
 from configs.eval_configs import EvalCodebookArgs

@@ -8,7 +8,7 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 from jaxtyping import Array, Float, Int
 
-from fluidgenie.models.vq_tokenizer import VQConfig
+from fluidgenie.models.base_tokenizer import VQConfig
 from fluidgenie.eval.utils import (
     ensure_dir,
     vorticity_from_uv,

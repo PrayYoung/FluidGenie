@@ -9,7 +9,7 @@ This script:
   - trains Transformer to predict next-frame tokens from context-frame tokens
 
 Run (example):
-  uv run python -m fluidgenie.training.train_dynamics \
+  uv run python -m fluidgenie.training.train_dynamics_base \
     --data data/ns2d \
     --vq_ckpt runs/vq/latest \
     --out runs/dyn \
@@ -40,8 +40,8 @@ from fluidgenie.data.dataset_npz import NPZSequenceDataset, prefetch_iter
 from fluidgenie.training.logging_utils import TrainingLogger
 from fluidgenie.training.losses import dynamics_ar_loss
 from fluidgenie.training.checkpoint_utils import save_params, load_params
-from fluidgenie.models.vq_tokenizer import VQVAE, VQConfig
-from fluidgenie.models.transformer_dynamics import TransformerDynamics, DynConfig
+from fluidgenie.models.base_tokenizer import VQVAE, VQConfig
+from fluidgenie.models.base_dynamics import TransformerDynamics, DynConfig
 
 
 # -------------------------

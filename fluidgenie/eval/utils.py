@@ -9,8 +9,8 @@ import jax.numpy as jnp
 from jaxtyping import Array, Float, Int
 from fluidgenie.training.checkpoint_utils import load_params
 
-from fluidgenie.models.vq_tokenizer import VQVAE, VQConfig, Decoder
-from fluidgenie.models.transformer_dynamics import TransformerDynamics, DynConfig
+from fluidgenie.models.base_tokenizer import VQVAE, VQConfig, Decoder
+from fluidgenie.models.base_dynamics import TransformerDynamics, DynConfig
 from fluidgenie.models.tokenizer_st import TokenizerSTVQVAE
 
 

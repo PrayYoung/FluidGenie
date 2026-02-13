@@ -39,12 +39,12 @@ uv run python -m fluidgenie.data.gen_phiflow_ns2d \
   --steps 120
 
 # 2) Train tokenizer (Conv VQ)
-uv run python -m fluidgenie.training.train_tokenizer \
+uv run python -m fluidgenie.training.train_tokenizer_base \
   --data data/ns2d \
   --out runs/vq
 
 # 3) Train dynamics (AR)
-uv run python -m fluidgenie.training.train_dynamics \
+uv run python -m fluidgenie.training.train_dynamics_base \
   --data data/ns2d \
   --vq-ckpt runs/vq/latest \
   --out runs/dyn \
@@ -65,7 +65,7 @@ uv run python -m fluidgenie.cli.demo \
 
 ### Tokenizer
 ```bash
-uv run python -m fluidgenie.training.train_tokenizer \
+uv run python -m fluidgenie.training.train_tokenizer_base \
   --data data/ns2d \
   --out runs/vq \
   --stats data/ns2d_stats.npz
@@ -73,7 +73,7 @@ uv run python -m fluidgenie.training.train_tokenizer \
 
 ### Dynamics (AR)
 ```bash
-uv run python -m fluidgenie.training.train_dynamics \
+uv run python -m fluidgenie.training.train_dynamics_base \
   --data data/ns2d \
   --vq-ckpt runs/vq/latest \
   --out runs/dyn \
@@ -82,7 +82,7 @@ uv run python -m fluidgenie.training.train_dynamics \
 
 ### Dynamics (MaskGIT)
 ```bash
-uv run python -m fluidgenie.training.train_dynamics \
+uv run python -m fluidgenie.training.train_dynamics_base \
   --data data/ns2d \
   --vq-ckpt runs/vq/latest \
   --out runs/dyn_maskgit \

@@ -5,7 +5,7 @@ This trains a frame-level VQ-VAE:
   field (H,W,C) -> discrete token grid -> reconstruction
 
 Run:
-  uv run python -m fluidgenie.training.train_tokenizer \
+  uv run python -m fluidgenie.training.train_tokenizer_base \
     --data data/ns2d_test \
     --out runs/vq \
     --steps 2000
@@ -29,7 +29,7 @@ from fluidgenie.data.dataset_npz import NPZSequenceDataset, prefetch_iter
 from fluidgenie.training.logging_utils import TrainingLogger
 from fluidgenie.training.losses import tokenizer_conv_loss
 from fluidgenie.training.checkpoint_utils import save_params
-from fluidgenie.models.vq_tokenizer import VQVAE, VQConfig
+from fluidgenie.models.base_tokenizer import VQVAE, VQConfig
 import tyro
 
 

@@ -18,8 +18,8 @@ try:
 except Exception:  # pragma: no cover
     import imageio  # type: ignore
 
-from fluidgenie.models.vq_tokenizer import VQConfig
-from fluidgenie.models.transformer_dynamics import DynConfig
+from fluidgenie.models.base_tokenizer import VQConfig
+from fluidgenie.models.base_dynamics import DynConfig
 from fluidgenie.models.dynamics_st import DynamicsSTMaskGIT
 from fluidgenie.models.lam import LatentActionModel
 from fluidgenie.eval.utils import (

@@ -28,7 +28,7 @@ from fluidgenie.data.dataset_npz import NPZSequenceDataset, prefetch_iter
 from fluidgenie.training.logging_utils import TrainingLogger
 from fluidgenie.training.losses import dynamics_st_loss
 from fluidgenie.training.checkpoint_utils import save_params, load_params
-from fluidgenie.models.vq_tokenizer import VQVAE, VQConfig
+from fluidgenie.models.base_tokenizer import VQVAE, VQConfig
 from fluidgenie.models.dynamics_st import DynamicsSTMaskGIT
 from fluidgenie.models.lam import LatentActionModel
 
