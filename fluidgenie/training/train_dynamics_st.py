@@ -28,7 +28,8 @@ from fluidgenie.data.dataset_npz import NPZSequenceDataset, create_grain_dataloa
 from fluidgenie.training.logging_utils import TrainingLogger
 from fluidgenie.training.losses import dynamics_st_loss
 from fluidgenie.training.checkpoint_utils import save_params, load_params
-from fluidgenie.models.base_tokenizer import VQVAE, VQConfig
+from fluidgenie.models.base_tokenizer import VQConfig
+from fluidgenie.models.tokenizer_st import TokenizerSTVQVAE
 from fluidgenie.models.dynamics_st import DynamicsSTMaskGIT
 from fluidgenie.models.lam import LatentActionModel
 
@@ -94,17 +95,29 @@ def main():
     x_tgt0 = jnp.array(x_tgt0)
 
     vq_cfg = VQConfig(codebook_size=args.codebook, embed_dim=args.embed, hidden=args.hidden)
-    base_tokenizer_model = VQVAE(vq_cfg, in_channels=C)
-    base_tokenizer_init = base_tokenizer_model.init(
-        rng, jnp.zeros((1, H, W, C), dtype=jnp.float32)
+    st_tokenizer_model = TokenizerSTVQVAE(
+        in_dim=C,
+        model_dim=args.tok_model_dim,
+        latent_dim=args.embed,
+        num_latents=args.codebook,
+        patch_size=args.tok_patch_size,
+        num_blocks=args.tok_num_blocks,
+        num_heads=args.tok_num_heads,
+        dropout=args.tok_dropout,
+        codebook_dropout=args.tok_codebook_dropout,
+    )
+    st_tokenizer_init = st_tokenizer_model.init(
+        rng, {"videos": jnp.zeros((1, 1, H, W, C), dtype=jnp.float32)}, training=False
     )["params"]
-    base_tokenizer_params = load_params(args.vq_ckpt, base_tokenizer_init)
+    st_tokenizer_params = load_params(args.vq_ckpt, st_tokenizer_init)
 
-    def _vq_encode_to_tokens(base_params, x: jnp.ndarray) -> jnp.ndarray:
-        _x_rec, tok, _commit, _cb = base_tokenizer_model.apply({"params": base_params}, x)
-        return tok.astype(jnp.int32)
+    def _st_encode_to_tokens(params, x: jnp.ndarray) -> jnp.ndarray:
+        out = st_tokenizer_model.apply(
+            {"params": params}, x, training=False, method=TokenizerSTVQVAE.encode_frame
+        )
+        return out.astype(jnp.int32)
 
-    vq_encode_to_tokens = jax.jit(_vq_encode_to_tokens)
+    st_encode_to_tokens = jax.jit(_st_encode_to_tokens)
 
     lam_model = None
     lam_params = None
@@ -151,7 +164,9 @@ def main():
         mask_ratio_max=args.mask_ratio_max,
     )
     tok_seq0 = encode_tokens_seq(
-        vq_encode_to_tokens, base_tokenizer_params, jnp.concatenate([x_ctx0, x_tgt0], axis=1)
+        st_encode_to_tokens,
+        st_tokenizer_params,
+        jnp.concatenate([x_ctx0, x_tgt0], axis=1),
     )
     st_dynamics_params = st_dynamics_model.init(
         rng, {"video_tokens": tok_seq0, "mask_rng": rng}, training=True
@@ -175,7 +190,7 @@ def main():
         x_tgt = jnp.array(x_tgt)
 
         x_seq = jnp.concatenate([x_ctx, x_tgt], axis=1)
-        tok_seq = encode_tokens_seq(vq_encode_to_tokens, base_tokenizer_params, x_seq)
+        tok_seq = encode_tokens_seq(st_encode_to_tokens, st_tokenizer_params, x_seq)
         latent_actions = None
         if args.use_lam:
             latent_actions = lam_encode(lam_params, x_seq)
