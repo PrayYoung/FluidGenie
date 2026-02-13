@@ -1,12 +1,15 @@
 from __future__ import annotations
 
-from typing import Tuple, Dict, Any
+from typing import Tuple, Dict, Any, Callable
 
 import jax
 import jax.numpy as jnp
+from jaxtyping import Array, Bool, Float, Int
 
 
-def spatial_grads(img: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
+def spatial_grads(
+    img: Float[Array, "b h w c"],
+) -> Tuple[Float[Array, "b h w c"], Float[Array, "b h w c"]]:
     # Central differences with edge padding to keep H,W sizes
     img_pad = jnp.pad(img, ((0, 0), (1, 1), (1, 1), (0, 0)), mode="edge")
     dx = 0.5 * (img_pad[:, 1:-1, 2:, :] - img_pad[:, 1:-1, :-2, :])
@@ -14,7 +17,7 @@ def spatial_grads(img: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
     return dx, dy
 
 
-def compute_vorticity(img: jnp.ndarray) -> jnp.ndarray:
+def compute_vorticity(img: Float[Array, "b h w c"]) -> Float[Array, "b h w"]:
     # img: [B,H,W,C], assumes C>=2 with u=0, v=1
     u = img[..., 0]
     v = img[..., 1]
@@ -26,13 +29,13 @@ def compute_vorticity(img: jnp.ndarray) -> jnp.ndarray:
 
 
 def tokenizer_conv_loss(
-    apply_fn,
+    apply_fn: Callable[..., Any],
     params: Dict[str, Any],
-    batch: jnp.ndarray,
+    batch: Float[Array, "b h w c"],
     alpha: float,
     beta: float,
     gamma: float,
-) -> Tuple[jnp.ndarray, Dict[str, jnp.ndarray]]:
+) -> Tuple[Float[Array, ""], Dict[str, Float[Array, ""]]]:
     x_rec, _, commit_loss, codebook_loss = apply_fn({"params": params}, batch)
 
     recon_loss = jnp.mean((x_rec - batch) ** 2)
@@ -63,12 +66,12 @@ def tokenizer_conv_loss(
 
 
 def tokenizer_st_loss(
-    apply_fn,
+    apply_fn: Callable[..., Any],
     params: Dict[str, Any],
-    batch: jnp.ndarray,
+    batch: Float[Array, "b t h w c"],
     beta: float,
-    dropout_key: jnp.ndarray,
-) -> Tuple[jnp.ndarray, Dict[str, jnp.ndarray]]:
+    dropout_key: jax.Array,
+) -> Tuple[Float[Array, ""], Dict[str, Float[Array, ""]]]:
     outputs = apply_fn(
         {"params": params},
         {"videos": batch},
@@ -89,12 +92,12 @@ def tokenizer_st_loss(
 
 
 def lam_loss(
-    apply_fn,
+    apply_fn: Callable[..., Any],
     params: Dict[str, Any],
-    batch: jnp.ndarray,
+    batch: Float[Array, "b t h w c"],
     beta: float,
-    dropout_key: jnp.ndarray,
-) -> Tuple[jnp.ndarray, Dict[str, jnp.ndarray]]:
+    dropout_key: jax.Array,
+) -> Tuple[Float[Array, ""], Dict[str, Float[Array, ""]]]:
     outputs = apply_fn(
         {"params": params},
         {"videos": batch},
@@ -116,14 +119,14 @@ def lam_loss(
 
 
 def dynamics_ar_loss(
-    apply_fn,
+    apply_fn: Callable[..., Any],
     params: Dict[str, Any],
-    seq: jnp.ndarray,
-    tok_tgt: jnp.ndarray,
+    seq: Int[Array, "b l"],
+    tok_tgt: Int[Array, "b l_out"],
     l_in: int,
-    dropout_key: jnp.ndarray,
-    mask: jnp.ndarray | None = None,
-) -> Tuple[jnp.ndarray, Dict[str, jnp.ndarray]]:
+    dropout_key: jax.Array,
+    mask: Bool[Array, "b l_out"] | None = None,
+) -> Tuple[Float[Array, ""], Dict[str, Float[Array, ""]]]:
     logits = apply_fn({"params": params}, seq, train=True, rngs={"dropout": dropout_key})
     logits_tgt = logits[:, l_in:, :]
     ce = jax.nn.softmax_cross_entropy_with_integer_labels(logits_tgt, tok_tgt)
@@ -136,13 +139,13 @@ def dynamics_ar_loss(
 
 
 def dynamics_st_loss(
-    apply_fn,
+    apply_fn: Callable[..., Any],
     params: Dict[str, Any],
-    tok_seq: jnp.ndarray,
-    mask_key: jnp.ndarray,
-    dropout_key: jnp.ndarray,
-    latent_actions: jnp.ndarray | None = None,
-) -> Tuple[jnp.ndarray, Dict[str, jnp.ndarray]]:
+    tok_seq: Int[Array, "b t n"],
+    mask_key: jax.Array,
+    dropout_key: jax.Array,
+    latent_actions: Float[Array, "b t m d"] | None = None,
+) -> Tuple[Float[Array, ""], Dict[str, Float[Array, ""]]]:
     batch = {"video_tokens": tok_seq, "mask_rng": mask_key}
     if latent_actions is not None:
         batch["latent_actions"] = latent_actions

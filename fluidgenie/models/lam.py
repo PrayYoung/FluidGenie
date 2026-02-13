@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from typing import Dict, Any
+from typing import Any, Dict
 
 import flax.linen as nn
 import jax.numpy as jnp
+from jaxtyping import Array, Float
 
 from fluidgenie.data.preprocess import patchify, unpatchify
 from fluidgenie.models.st_transformer import STTransformer, VectorQuantizer
@@ -51,7 +52,9 @@ class LatentActionModel(nn.Module):
             self.dropout,
         )
 
-    def __call__(self, batch: Dict[str, Any], training: bool = True) -> Dict[str, Any]:
+    def __call__(
+        self, batch: Dict[str, Any], training: bool = True
+    ) -> Dict[str, Array]:
         h, w = batch["videos"].shape[2:4]
         outputs = self.vq_encode(batch["videos"], training)
         video_action_patches = self.action_up(outputs["z_q"]) + self.patch_up(
@@ -63,7 +66,7 @@ class LatentActionModel(nn.Module):
         outputs["recon"] = unpatchify(video_recon, self.patch_size, h, w)
         return outputs
 
-    def vq_encode(self, videos: Any, training: bool = True) -> Dict[str, Any]:
+    def vq_encode(self, videos: Float[Array, "b t h w c"], training: bool = True) -> Dict[str, Array]:
         b, t = videos.shape[:2]
         patches = patchify(videos, self.patch_size)
         action_pad = jnp.broadcast_to(self.action_in, (b, t, 1, self.patch_token_dim))

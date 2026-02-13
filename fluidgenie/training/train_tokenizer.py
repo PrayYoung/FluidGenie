@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from configs.model_configs import TokenizerConfig
 from pathlib import Path
-from typing import Iterator, Tuple
+from typing import Iterator
 
 import numpy as np
 import jax
@@ -23,6 +23,7 @@ import jax.numpy as jnp
 import optax
 from flax.training import train_state
 from tqdm import trange
+from jaxtyping import Array, Float
 
 from fluidgenie.data.dataset_npz import NPZSequenceDataset, prefetch_iter
 from fluidgenie.training.logging_utils import TrainingLogger
@@ -61,7 +62,7 @@ class TrainState(train_state.TrainState):
 
 def make_train_step(alpha: float, beta: float, gamma: float):
     @jax.jit
-    def _train_step(state: TrainState, batch: jnp.ndarray):
+    def _train_step(state: TrainState, batch: Float[Array, "b h w c"]):
         def loss_fn(params):
             return tokenizer_conv_loss(state.apply_fn, params, batch, alpha, beta, gamma)
 

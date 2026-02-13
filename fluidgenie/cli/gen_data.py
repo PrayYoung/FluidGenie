@@ -14,42 +14,21 @@ Example:
     --viscosity 0.001 \
     --substeps 1 \
     --density 1 \
-    --implicit 0 \
     --prefix episode
 """
 
 from __future__ import annotations
 
-import argparse
 from pathlib import Path
 
-from fluidgenie.data.gen_phiflow_ns2d import NS2DConfig, generate_dataset
+import tyro
+
+from configs.gen_data_configs import GenDataArgs, NS2DConfig
+from fluidgenie.data.gen_phiflow_ns2d import generate_dataset
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--out", type=str, required=True, help="Output directory for npz episodes")
-    ap.add_argument("--episodes", type=int, default=10, help="Number of episodes to generate")
-    ap.add_argument("--prefix", type=str, default="episode", help="Filename prefix")
-
-    # NS2DConfig fields
-    ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--steps", type=int, default=200)
-    ap.add_argument("--dt", type=float, default=0.1)
-    ap.add_argument("--res", type=int, default=128)
-    ap.add_argument("--viscosity", type=float, default=0.001)
-    ap.add_argument("--implicit", type=int, default=0, help="1=use diffuse.implicit, 0=explicit")
-    ap.add_argument("--density", type=int, default=1, help="1=with density channel, 0=velocity-only")
-    ap.add_argument("--substeps", type=int, default=1, help="internal substeps per saved frame")
-    ap.add_argument("--save-every", type=int, default=1, help="save one frame every N steps")
-    ap.add_argument("--noise", type=float, default=0.10, help="initial velocity noise scale")
-
-    # Future forcing (already present in config)
-    ap.add_argument("--forcing_strength", type=float, default=0.0)
-    ap.add_argument("--forcing_radius", type=float, default=0.08)
-    ap.add_argument("--density_radius", type=float, default=0.08)
-
-    args = ap.parse_args()
+def main() -> None:
+    args = tyro.cli(GenDataArgs)
 
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -60,7 +39,7 @@ def main():
         dt=args.dt,
         resolution=args.res,
         viscosity=args.viscosity,
-        use_implicit_diffusion=bool(args.implicit),
+        use_implicit_diffusion=args.implicit,
         with_density=bool(args.density),
         substeps=args.substeps,
         save_every=args.save_every,

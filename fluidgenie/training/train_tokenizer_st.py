@@ -19,6 +19,7 @@ import jax.numpy as jnp
 import optax
 from flax.training import train_state
 from tqdm import trange
+from jaxtyping import Array, Float
 import tyro
 
 from configs.model_configs import TokenizerConfig
@@ -49,7 +50,11 @@ class TrainState(train_state.TrainState):
 
 def make_train_step(beta: float):
     @jax.jit
-    def _train_step(state: TrainState, batch: jnp.ndarray, dropout_key: jnp.ndarray):
+    def _train_step(
+        state: TrainState,
+        batch: Float[Array, "b t h w c"],
+        dropout_key: jax.Array,
+    ):
         def loss_fn(params):
             return tokenizer_st_loss(state.apply_fn, params, batch, beta, dropout_key)
 

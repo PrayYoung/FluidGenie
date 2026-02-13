@@ -33,6 +33,7 @@ from flax import linen as nn
 from flax.training import train_state
 from tqdm import trange
 from einops import rearrange
+from jaxtyping import Array, Float, Int
 import tyro
 
 from fluidgenie.data.dataset_npz import NPZSequenceDataset, prefetch_iter
@@ -67,21 +68,23 @@ def infinite_loader(ds: NPZSequenceDataset, batch_size: int) -> Iterator[Tuple[n
             yield np.stack(xs, axis=0), np.stack(ys, axis=0)
 
 
-def flatten_token_sequence(tok_ctx: jnp.ndarray) -> jnp.ndarray:
+def flatten_token_sequence(tok_ctx: Int[Array, "b t h w"]) -> Int[Array, "b l"]:
     """
     tok_ctx: [B, context, h, w] -> [B, L] where L=context*h*w
     """
     return rearrange(tok_ctx, "b t h w -> b (t h w)")
 
 
-def flatten_token_grid(tok: jnp.ndarray) -> jnp.ndarray:
+def flatten_token_grid(tok: Int[Array, "b h w"]) -> Int[Array, "b l"]:
     """
     tok: [B, h, w] -> [B, h*w]
     """
     return rearrange(tok, "b h w -> b (h w)")
 
 
-def encode_tokens_seq(vq_encode_fn, vq_params, x_seq: jnp.ndarray) -> jnp.ndarray:
+def encode_tokens_seq(
+    vq_encode_fn, vq_params, x_seq: Float[Array, "b t h w c"]
+) -> Int[Array, "b t h2 w2"]:
     """
     x_seq: [B, T, H, W, C] -> tok_seq: [B, T, h, w]
     """
@@ -117,7 +120,13 @@ def make_train_step(
     bos_token_id: int,
 ):
     @jax.jit
-    def _train_step(state: TrainState, tok_in: jnp.ndarray, tok_tgt: jnp.ndarray, dropout_key: jnp.ndarray, mask_key: jnp.ndarray) -> Tuple[TrainState, dict]:
+    def _train_step(
+        state: TrainState,
+        tok_in: Int[Array, "b l_in"],
+        tok_tgt: Int[Array, "b l_out"],
+        dropout_key: jax.Array,
+        mask_key: jax.Array,
+    ) -> Tuple[TrainState, dict]:
         """
         Args:
           tok_in:  int32 [B, L_in]  (context tokens flattened)

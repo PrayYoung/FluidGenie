@@ -3,9 +3,12 @@ from __future__ import annotations
 import einops
 import jax
 import jax.numpy as jnp
+from jaxtyping import Array, Float
 
 
-def patchify(videos: jax.Array, size: int) -> jax.Array:
+def patchify(
+    videos: Float[Array, "b t h w c"], size: int
+) -> Float[Array, "b t n p"]:
     b, t, h, w, c = videos.shape
     x = jnp.pad(videos, ((0, 0), (0, 0), (0, -h % size), (0, -w % size), (0, 0)))
     return einops.rearrange(
@@ -13,7 +16,9 @@ def patchify(videos: jax.Array, size: int) -> jax.Array:
     )
 
 
-def unpatchify(patches: jax.Array, size: int, h_out: int, w_out: int) -> jax.Array:
+def unpatchify(
+    patches: Float[Array, "b t n p"], size: int, h_out: int, w_out: int
+) -> Float[Array, "b t h w c"]:
     h_pad = -h_out % size
     hn = (h_out + h_pad) // size
     x = einops.rearrange(

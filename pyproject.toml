@@ -12,6 +12,7 @@ dependencies = [
     "flax>=0.10.7",
     "imageio>=2.37.2",
     "jax>=0.6.2",
+    "jaxtyping>=0.2.31",
     "matplotlib>=3.10.8",
     "numpy>=2.2.6",
     "optax>=0.2.6",

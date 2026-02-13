@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
 import numpy as np
 import jax
 import jax.numpy as jnp
 import matplotlib
+from jaxtyping import Array, Bool, Float, Int
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -36,23 +37,25 @@ from fluidgenie.training.checkpoint_utils import load_params
 from tqdm import tqdm
 
 
-def sample_argmax(logits: jnp.ndarray) -> jnp.ndarray:
+def sample_argmax(logits: Float[Array, "b v"]) -> Int[Array, "b"]:
     return jnp.argmax(logits, axis=-1).astype(jnp.int32)
 
 
-def _denorm(x: jnp.ndarray, mean, std) -> jnp.ndarray:
+def _denorm(x: Float[Array, "... c"], mean, std) -> Float[Array, "... c"]:
     if mean is None:
         return x
     return x * (std + 1e-6) + mean
 
 
-def _norm(x: np.ndarray, mean, std) -> np.ndarray:
+def _norm(x: Float[Array, "... c"], mean, std) -> Float[Array, "... c"]:
     if mean is None:
         return x
     return (x - mean) / (std + 1e-6)
 
 
-def compute_rollout_metrics(gt: np.ndarray, pred: np.ndarray, view: str) -> dict:
+def compute_rollout_metrics(
+    gt: Float[Array, "t h w c"], pred: Float[Array, "t h w c"], view: str
+) -> dict:
     """
     gt, pred: [T,H,W,C]
     Returns per-frame metrics and aggregates.
@@ -87,7 +90,13 @@ def compute_rollout_metrics(gt: np.ndarray, pred: np.ndarray, view: str) -> dict
     }
 
 
-def visualize_rollout(gt: np.ndarray, pred: np.ndarray, out_dir: Path, view: str, fps: int = 8) -> None:
+def visualize_rollout(
+    gt: Float[Array, "t h w c"],
+    pred: Float[Array, "t h w c"],
+    out_dir: Path,
+    view: str,
+    fps: int = 8,
+) -> None:
     T, _, _, C = gt.shape
     frames = []
     for k in range(T):
@@ -143,7 +152,13 @@ def visualize_rollout(gt: np.ndarray, pred: np.ndarray, out_dir: Path, view: str
     print("Saved:", out_gif)
 
 
-def encode_context_tokens(vq_encode_tokens, vq_params, ctx_frames: np.ndarray, mean, std) -> jnp.ndarray:
+def encode_context_tokens(
+    vq_encode_tokens,
+    vq_params,
+    ctx_frames: Float[Array, "t h w c"],
+    mean,
+    std,
+) -> Int[Array, "1 t h2 w2"]:
     # ctx_frames: [context,H,W,C] -> [1,context,h,w]
     x = ctx_frames.astype(np.float32)
     if mean is not None:
@@ -157,11 +172,11 @@ def encode_context_tokens(vq_encode_tokens, vq_params, ctx_frames: np.ndarray, m
 def rollout_tokens_autoregressive(
     dyn_model,
     dyn_params,
-    tok_in: jnp.ndarray,
+    tok_in: Int[Array, "b l_in"],
     L_out: int,
     vocab: int,
     bos_token_id: int = 0,
-) -> jnp.ndarray:
+) -> Int[Array, "b l_out"]:
     B, L_in = tok_in.shape
     tok_out = jnp.zeros((B, 0), dtype=jnp.int32)
 
@@ -186,11 +201,11 @@ def rollout_tokens_autoregressive(
 def rollout_tokens_autoregressive_cached(
     dyn_model,
     dyn_params,
-    tok_in: jnp.ndarray,
+    tok_in: Int[Array, "b l_in"],
     L_out: int,
     bos_token_id: int = 0,
     rng_seed: int = 0,
-) -> jnp.ndarray:
+) -> Int[Array, "b l_out"]:
     """
     Autoregressive rollout using KV cache (decode=True).
     """
@@ -254,12 +269,12 @@ def rollout_tokens_autoregressive_cached(
 def maskgit_rollout_tokens(
     dyn_model,
     dyn_params,
-    tok_in: jnp.ndarray,
+    tok_in: Int[Array, "b l_in"],
     L_out: int,
     vocab: int,
     mask_token_id: int,
     mask_steps: int,
-) -> jnp.ndarray:
+) -> Int[Array, "b l_out"]:
     B, L_in = tok_in.shape
 
     def step_fn(tok_out, step):
@@ -291,11 +306,11 @@ def maskgit_rollout_tokens(
 def st_maskgit_rollout_tokens(
     dyn_model,
     dyn_params,
-    tok_ctx: jnp.ndarray,
+    tok_ctx: Int[Array, "b t h w"],
     mask_steps: int,
-    rng_key: jnp.ndarray,
-    latent_actions: jnp.ndarray | None = None,
-) -> jnp.ndarray:
+    rng_key: jax.Array,
+    latent_actions: Float[Array, "b t m d"] | None = None,
+) -> Int[Array, "b h w"]:
     """
     tok_ctx: [B, context, h, w]
     returns tok_next: [B, h, w]
@@ -386,9 +401,9 @@ def run_rollout_generator(
     bos_token_id: int = 0,
     rng_seed: int = 0,
     view: str = "density",
-) -> tuple[np.ndarray, np.ndarray, dict]:
+) -> tuple[Float[Array, "t h w c"], Float[Array, "t h w c"], dict]:
     data = np.load(npz_path, allow_pickle=True)
-    fields = data["fields"]  # [T,H,W,C]
+    fields: Float[Array, "t h w c"] = data["fields"]  # [T,H,W,C]
     T, H, W, C = fields.shape
 
     if start + context + horizon >= T:
@@ -493,10 +508,10 @@ def run_rollout_generator(
 
     ctx_frames_dyn = _norm(fields[start : start + context], mean, std)
 
-    def flatten_ctx(tok_ctx: jnp.ndarray) -> jnp.ndarray:
+    def flatten_ctx(tok_ctx: Int[Array, "b t h w"]) -> Int[Array, "b l_in"]:
         return tok_ctx.reshape((tok_ctx.shape[0], -1))
 
-    def unflatten_grid(tok_flat: jnp.ndarray) -> jnp.ndarray:
+    def unflatten_grid(tok_flat: Int[Array, "b l_out"]) -> Int[Array, "b h w"]:
         return tok_flat.reshape((tok_flat.shape[0], h_tok, w_tok))
 
     def rollout_step(tok_ctx, _):

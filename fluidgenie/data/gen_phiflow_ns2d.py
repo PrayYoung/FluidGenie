@@ -15,6 +15,8 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Optional, Tuple, Dict, Any
 
+from jaxtyping import Array, Float
+
 import numpy as np
 import tyro
 
@@ -137,7 +139,7 @@ def _to_numpy_stable(phi_tensor, order: Optional[Tuple[str, ...]] = None) -> np.
     return np.asarray(phi_tensor)
 
 
-def state_to_numpy(velocity, density) -> np.ndarray:
+def state_to_numpy(velocity, density) -> Float[Array, "h w c"]:
     # centered velocity samples: [y, x, vector]
     v_center = velocity.at_centers().values
     v_np = _to_numpy_stable(v_center, order=("y", "x", "vector")).astype(np.float32)
@@ -149,7 +151,7 @@ def state_to_numpy(velocity, density) -> np.ndarray:
     return np.concatenate([v_np, d_np], axis=-1)
 
 
-def generate_episode(cfg: NS2DConfig) -> Tuple[np.ndarray, Dict[str, Any]]:
+def generate_episode(cfg: NS2DConfig) -> Tuple[Float[Array, "t h w c"], Dict[str, Any]]:
     velocity, density, forcing = init_state(cfg)
     pressure_solve = _pressure_solve(cfg)
     save_every = max(1, int(cfg.save_every))
@@ -185,7 +187,7 @@ def generate_episode(cfg: NS2DConfig) -> Tuple[np.ndarray, Dict[str, Any]]:
     return fields, meta
 
 
-def save_episode_npz(out_path: Path, fields: np.ndarray, meta: Dict[str, Any]) -> None:
+def save_episode_npz(out_path: Path, fields: Float[Array, "t h w c"], meta: Dict[str, Any]) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(out_path, fields=fields, meta=meta)
 

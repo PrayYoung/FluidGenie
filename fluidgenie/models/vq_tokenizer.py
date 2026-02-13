@@ -1,7 +1,10 @@
 from dataclasses import dataclass
-import jax, jax.numpy as jnp
-from flax import linen as nn
+
+import jax
+import jax.numpy as jnp
 from einops import rearrange
+from flax import linen as nn
+from jaxtyping import Array, Float, Int
 
 @dataclass
 class VQConfig:
@@ -12,7 +15,7 @@ class VQConfig:
 class Encoder(nn.Module):
     cfg: VQConfig
     @nn.compact
-    def __call__(self, x):
+    def __call__(self, x: Float[Array, "b h w c"]) -> Float[Array, "b h2 w2 d"]:
         # x: [B,H,W,C]
         h = nn.Conv(self.cfg.hidden, (4,4), strides=(2,2), padding="SAME")(x)
         h = nn.gelu(h)
@@ -25,7 +28,7 @@ class Decoder(nn.Module):
     cfg: VQConfig
     out_channels: int
     @nn.compact
-    def __call__(self, z):
+    def __call__(self, z: Float[Array, "b h w d"]) -> Float[Array, "b h2 w2 c"]:
         h = nn.ConvTranspose(self.cfg.hidden, (4,4), strides=(2,2), padding="SAME")(z)
         h = nn.gelu(h)
         h = nn.ConvTranspose(self.cfg.hidden, (4,4), strides=(2,2), padding="SAME")(h)
@@ -36,7 +39,14 @@ class Decoder(nn.Module):
 class VectorQuantizer(nn.Module):
     cfg: VQConfig
     @nn.compact
-    def __call__(self, z_e):
+    def __call__(
+        self, z_e: Float[Array, "b h w d"]
+    ) -> tuple[
+        Float[Array, "b h w d"],
+        Int[Array, "b h w"],
+        Float[Array, ""],
+        Float[Array, ""],
+    ]:
         # z_e: [B,h,w,D]
         D = self.cfg.embed_dim
         K = self.cfg.codebook_size
@@ -67,7 +77,14 @@ class VQVAE(nn.Module):
     cfg: VQConfig
     in_channels: int
     @nn.compact
-    def __call__(self, x):
+    def __call__(
+        self, x: Float[Array, "b h w c"]
+    ) -> tuple[
+        Float[Array, "b h w c"],
+        Int[Array, "b h2 w2"],
+        Float[Array, ""],
+        Float[Array, ""],
+    ]:
         z_e = Encoder(self.cfg)(x)
         z_q, tok, commit, codebook_loss = VectorQuantizer(self.cfg)(z_e)
         x_rec = Decoder(self.cfg, out_channels=self.in_channels)(z_q)

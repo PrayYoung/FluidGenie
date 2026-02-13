@@ -4,11 +4,19 @@ import argparse
 import glob
 import os
 from pathlib import Path
+from jaxtyping import Array, Float
 
 import numpy as np
 
 
-def update_running_mean_var(mean, var, count, batch_mean, batch_var, batch_count):
+def update_running_mean_var(
+    mean: Float[Array, "c"] | None,
+    var: Float[Array, "c"] | None,
+    count: int,
+    batch_mean: Float[Array, "c"],
+    batch_var: Float[Array, "c"],
+    batch_count: int,
+):
     if count == 0:
         return batch_mean, batch_var, batch_count
     delta = batch_mean - mean
@@ -21,7 +29,7 @@ def update_running_mean_var(mean, var, count, batch_mean, batch_var, batch_count
     return new_mean, new_var, total
 
 
-def compute_stats(data_dir: str) -> tuple[np.ndarray, np.ndarray]:
+def compute_stats(data_dir: str) -> tuple[Float[Array, "c"], Float[Array, "c"]]:
     files = sorted(glob.glob(os.path.join(data_dir, "*.npz")))
     assert files, f"No npz found in {data_dir}"
 

@@ -6,6 +6,7 @@ from typing import Optional
 import numpy as np
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
+from jaxtyping import Array, Float, Int
 
 from fluidgenie.models.vq_tokenizer import VQConfig
 from fluidgenie.eval.utils import (
@@ -40,7 +41,7 @@ def save_tokenizer_recon(
     out = ensure_dir(Path(out_dir))
 
     data = np.load(npz_path, allow_pickle=True)
-    fields = data["fields"]  # [T,H,W,C]
+    fields: Float[Array, "t h w c"] = data["fields"]  # [T,H,W,C]
     x = fields[frame]        # [H,W,C]
     H, W, C = x.shape
 

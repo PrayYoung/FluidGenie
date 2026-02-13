@@ -20,6 +20,7 @@ import jax.numpy as jnp
 import optax
 from flax.training import train_state
 from tqdm import trange
+from jaxtyping import Array, Float, Int
 import tyro
 
 from configs.model_configs import DynamicsConfig
@@ -47,7 +48,9 @@ def infinite_loader(ds: NPZSequenceDataset, batch_size: int) -> Iterator[Tuple[n
             yield np.stack(xs, axis=0), np.stack(ys, axis=0)
 
 
-def encode_tokens_seq(vq_encode_fn, vq_params, x_seq: jnp.ndarray) -> jnp.ndarray:
+def encode_tokens_seq(
+    vq_encode_fn, vq_params, x_seq: Float[Array, "b t h w c"]
+) -> Int[Array, "b t h2 w2"]:
     b, t, h, w, c = x_seq.shape
     x_flat = x_seq.reshape(b * t, h, w, c)
     tok_flat = vq_encode_fn(vq_params, x_flat)
@@ -61,10 +64,10 @@ class TrainState(train_state.TrainState):
 @jax.jit
 def train_step_st(
     state: TrainState,
-    tok_seq: jnp.ndarray,
-    mask_key: jnp.ndarray,
-    dropout_key: jnp.ndarray,
-    latent_actions: jnp.ndarray | None = None,
+    tok_seq: Int[Array, "b t n"],
+    mask_key: jax.Array,
+    dropout_key: jax.Array,
+    latent_actions: Float[Array, "b t m d"] | None = None,
 ) -> Tuple[TrainState, dict]:
     def loss_fn(params):
         return dynamics_st_loss(

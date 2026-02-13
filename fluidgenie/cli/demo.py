@@ -41,7 +41,7 @@ from configs.eval_configs import DemoArgs
 # Entrypoint
 # ----------------------------
 
-def main():
+def main() -> None:
     args = tyro.cli(DemoArgs)
 
     if args.mode == "tokenizer":

@@ -6,11 +6,12 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.animation import FuncAnimation
+from jaxtyping import Array, Float
 
 
 def visualize_npz(path: Path, interval: int = 60, save_path: Path | None = None) -> None:
     data = np.load(path, allow_pickle=True)
-    fields = data["fields"]  # [T,H,W,C]
+    fields: Float[Array, "t h w c"] = data["fields"]  # [T,H,W,C]
 
     u = fields[..., 0]
     v = fields[..., 1]

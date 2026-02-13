@@ -1,7 +1,10 @@
-import os, glob
+import os
+import glob
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
+from typing import Iterator, Tuple
+from jaxtyping import Array, Float
 
 class NPZSequenceDataset:
     def __init__(self, data_dir: str, context: int = 2, pred: int = 1, stats_path: str | None = None):
@@ -25,10 +28,12 @@ class NPZSequenceDataset:
             for t in range(0, T - (context + pred) + 1):
                 self.index.append((i, t))
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.index)
 
-    def __getitem__(self, idx: int):
+    def __getitem__(
+        self, idx: int
+    ) -> Tuple[Float[Array, "context h w c"], Float[Array, "pred h w c"]]:
         file_idx, t = self.index[idx]
         data = np.load(self.files[file_idx])
         fields = data["fields"]  # [T,H,W,C]
@@ -42,7 +47,11 @@ class NPZSequenceDataset:
         return x, y
 
 
-def prefetch_iter(base_iter, prefetch: int = 2, num_workers: int = 1):
+def prefetch_iter(
+    base_iter: Iterator[Tuple[Float[Array, "..."], Float[Array, "..."]]],
+    prefetch: int = 2,
+    num_workers: int = 1,
+) -> Iterator[Tuple[Float[Array, "..."], Float[Array, "..."]]]:
     """
     Prefetch items from an iterator in a background thread.
     Keeps output order while overlapping data loading with compute.

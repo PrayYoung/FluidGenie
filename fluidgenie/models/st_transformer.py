@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import math
-from typing import Dict
 
 import jax
 import jax.numpy as jnp
 from flax import linen as nn
+from jaxtyping import Array, Float, Int
 
 
 class PositionalEncoding(nn.Module):
@@ -22,7 +22,7 @@ class PositionalEncoding(nn.Module):
         pe = pe.at[:, 1::2].set(jnp.cos(position * div_term))
         self.pe = pe
 
-    def __call__(self, x: jax.Array) -> jax.Array:
+    def __call__(self, x: Float[Array, "... d"]) -> Float[Array, "... d"]:
         return x + self.pe[: x.shape[2]]
 
 
@@ -33,7 +33,7 @@ class STBlock(nn.Module):
 
     @nn.remat
     @nn.compact
-    def __call__(self, x: jax.Array) -> jax.Array:
+    def __call__(self, x: Float[Array, "b t n d"]) -> Float[Array, "b t n d"]:
         # Spatial attention over patches
         z = PositionalEncoding(self.dim)(x)
         z = nn.LayerNorm()(z)
@@ -73,7 +73,7 @@ class STTransformer(nn.Module):
     dropout: float
 
     @nn.compact
-    def __call__(self, x: jax.Array) -> jax.Array:
+    def __call__(self, x: Float[Array, "b t n d_in"]) -> Float[Array, "b t n d_out"]:
         x = nn.Sequential([nn.LayerNorm(), nn.Dense(self.model_dim), nn.LayerNorm()])(x)
         for _ in range(self.num_blocks):
             x = STBlock(
@@ -82,7 +82,7 @@ class STTransformer(nn.Module):
         return nn.Dense(self.out_dim)(x)
 
 
-def normalize(x: jax.Array) -> jax.Array:
+def normalize(x: Float[Array, "... d"]) -> Float[Array, "... d"]:
     return x / (jnp.linalg.norm(x, ord=2, axis=-1, keepdims=True) + 1e-8)
 
 
@@ -101,7 +101,14 @@ class VectorQuantizer(nn.Module):
         )
         self.drop = nn.Dropout(self.dropout, deterministic=False)
 
-    def __call__(self, x: jax.Array, training: bool) -> Dict[str, jax.Array]:
+    def __call__(
+        self, x: Float[Array, "b d"], training: bool
+    ) -> tuple[
+        Float[Array, "b d"],
+        Float[Array, "b d"],
+        Float[Array, "b d"],
+        Int[Array, "b"],
+    ]:
         x = normalize(x)
         codebook = normalize(self.codebook)
         distance = -jnp.matmul(x, codebook.T)
@@ -113,5 +120,5 @@ class VectorQuantizer(nn.Module):
         z_q = x + jax.lax.stop_gradient(z - x)
         return z_q, z, x, indices
 
-    def get_codes(self, indices: jax.Array) -> jax.Array:
+    def get_codes(self, indices: Int[Array, "..."]) -> Float[Array, "... d"]:
         return self.codebook[indices]

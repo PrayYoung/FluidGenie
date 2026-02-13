@@ -1,6 +1,8 @@
 from dataclasses import dataclass
+
 import jax.numpy as jnp
 from flax import linen as nn
+from jaxtyping import Array, Float, Int
 
 @dataclass
 class DynConfig:
@@ -15,7 +17,12 @@ class TransformerDynamics(nn.Module):
     cfg: DynConfig
 
     @nn.compact
-    def __call__(self, tok_seq, train: bool, decode: bool = False):
+    def __call__(
+        self,
+        tok_seq: Int[Array, "b l"],
+        train: bool,
+        decode: bool = False,
+    ) -> Float[Array, "b l vocab"]:
         """
         tok_seq: int32 [B, L]
         returns logits: [B, L, vocab]

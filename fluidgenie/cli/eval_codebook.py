@@ -8,6 +8,7 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 import tyro
+from jaxtyping import Array, Float, Int
 
 from fluidgenie.models.vq_tokenizer import VQVAE, VQConfig
 from fluidgenie.models.tokenizer_st import TokenizerSTVQVAE
@@ -15,14 +16,14 @@ from fluidgenie.training.checkpoint_utils import load_params
 from configs.eval_configs import EvalCodebookArgs
 
 
-def main():
+def main() -> None:
     args = tyro.cli(EvalCodebookArgs)
 
     files = sorted(glob.glob(os.path.join(args.data, "*.npz")))[: args.episodes]
     if not files:
         raise FileNotFoundError(f"No npz files found in {args.data}")
 
-    sample = np.load(files[0])["fields"][0]
+    sample: Float[Array, "h w c"] = np.load(files[0])["fields"][0]
     H, W, C = sample.shape
 
     rng = jax.random.PRNGKey(args.seed)
@@ -57,7 +58,7 @@ def main():
         mean = None
         std = None
 
-    def encode(x):
+    def encode(x: Float[Array, "t h w c"]) -> Int[Array, "t h2 w2"]:
         if mean is not None:
             x = (x - mean) / (std + 1e-6)
         x = jnp.array(x, dtype=jnp.float32)

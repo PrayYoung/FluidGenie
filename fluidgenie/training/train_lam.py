@@ -20,6 +20,7 @@ import jax.numpy as jnp
 import optax
 from flax.training import train_state
 from tqdm import trange
+from jaxtyping import Array, Float
 import tyro
 
 from configs.model_configs import LAMConfig
@@ -49,7 +50,12 @@ class TrainState(train_state.TrainState):
 
 
 @jax.jit
-def train_step(state: TrainState, batch: jnp.ndarray, beta: float, dropout_key: jnp.ndarray):
+def train_step(
+    state: TrainState,
+    batch: Float[Array, "b t h w c"],
+    beta: float,
+    dropout_key: jax.Array,
+):
     def loss_fn(params):
         return lam_loss(state.apply_fn, params, batch, beta, dropout_key)
 

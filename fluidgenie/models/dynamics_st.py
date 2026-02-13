@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from typing import Dict, Any
+from typing import Any, Dict
 
 import jax
 import jax.numpy as jnp
 import flax.linen as nn
+from jaxtyping import Array
 
 from fluidgenie.models.st_transformer import STTransformer
 
@@ -40,7 +41,7 @@ class DynamicsSTMaskGIT(nn.Module):
         self,
         batch: Dict[str, Any],
         training: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, Array]:
         # video_tokens: [B,T,N] or [B,T,H,W]
         video_tokens = batch["video_tokens"]
         if video_tokens.ndim == 4:

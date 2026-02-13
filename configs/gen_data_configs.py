@@ -28,10 +28,12 @@ class NS2DConfig:
 class GenDataArgs:
     out: str = "data/ns2d"
     episodes: int = 200
+    prefix: str = "episode"
     steps: int = 120
     res: int = 96
     dt: float = 0.02
     viscosity: float = 0.001
+    implicit: bool = False
     density: int = 1
     substeps: int = 1
     save_every: int = 1

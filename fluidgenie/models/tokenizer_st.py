@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from typing import Dict, Any, Tuple
+from typing import Any, Dict, Tuple
+
+from jaxtyping import Array, Float, Int
 
 import flax.linen as nn
 
@@ -43,14 +45,16 @@ class TokenizerSTVQVAE(nn.Module):
             self.dropout,
         )
 
-    def __call__(self, batch: Dict[str, Any], training: bool = True) -> Dict[str, Any]:
+    def __call__(
+        self, batch: Dict[str, Any], training: bool = True
+    ) -> Dict[str, Array]:
         h, w = batch["videos"].shape[2:4]
         outputs = self.vq_encode(batch["videos"], training)
         recon = self.decoder(outputs["z_q"])
         outputs["recon"] = unpatchify(recon, self.patch_size, h, w)
         return outputs
 
-    def vq_encode(self, videos: Any, training: bool = True) -> Dict[str, Any]:
+    def vq_encode(self, videos: Float[Array, "b t h w c"], training: bool = True) -> Dict[str, Array]:
         b, t = videos.shape[:2]
         x = patchify(videos, self.patch_size)
         n = x.shape[2]
@@ -62,7 +66,7 @@ class TokenizerSTVQVAE(nn.Module):
         indices = indices.reshape(b, t, n)
         return dict(z_q=z_q, z=z, emb=emb, indices=indices)
 
-    def encode_frame(self, x: Any) -> Any:
+    def encode_frame(self, x: Float[Array, "b h w c"]) -> Int[Array, "b h2 w2"]:
         # x: [B,H,W,C] -> tokens [B,h,w]
         b, h, w, c = x.shape
         x = x[:, None, ...]
@@ -73,7 +77,9 @@ class TokenizerSTVQVAE(nn.Module):
         wn = (w + w_pad) // self.patch_size
         return tokens.reshape(b, 1, hn, wn)[:, 0]
 
-    def decode_tokens(self, indices: Any, video_hw: Tuple[int, int]):
+    def decode_tokens(
+        self, indices: Int[Array, "b h w"], video_hw: Tuple[int, int]
+    ) -> Float[Array, "b h w c"]:
         # indices: [B,h,w]
         b, h, w = indices.shape
         z = self.vq.get_codes(indices.reshape(b, 1, h * w))
