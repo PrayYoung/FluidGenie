@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import math
-
 import jax
 import jax.numpy as jnp
 from flax import linen as nn
@@ -13,14 +11,11 @@ class PositionalEncoding(nn.Module):
     max_len: int = 5000
 
     def setup(self):
-        pe = jnp.zeros((self.max_len, self.d_model))
-        position = jnp.arange(0, self.max_len, dtype=jnp.float32)[:, None]
-        div_term = jnp.exp(
-            jnp.arange(0, self.d_model, 2) * (-math.log(10000.0) / self.d_model)
+        self.pe = self.param(
+            "pos_emb",
+            nn.initializers.normal(stddev=0.02),
+            (self.max_len, self.d_model),
         )
-        pe = pe.at[:, 0::2].set(jnp.sin(position * div_term))
-        pe = pe.at[:, 1::2].set(jnp.cos(position * div_term))
-        self.pe = pe
 
     def __call__(self, x: Float[Array, "... d"]) -> Float[Array, "... d"]:
         return x + self.pe[: x.shape[2]]
