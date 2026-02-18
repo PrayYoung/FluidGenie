@@ -3,6 +3,7 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 from flax import linen as nn
+import functools
 from jaxtyping import Array, Float, Int
 
 
@@ -26,7 +27,7 @@ class STBlock(nn.Module):
     num_heads: int
     dropout: float
 
-    @nn.remat
+    @functools.partial(nn.remat, static_argnums=(2,))
     @nn.compact
     def __call__(self, x: Float[Array, "b t n d"], training: bool) -> Float[Array, "b t n d"]:
         # Spatial attention over patches
@@ -77,7 +78,7 @@ class STTransformer(nn.Module):
         for _ in range(self.num_blocks):
             x = STBlock(
                 dim=self.model_dim, num_heads=self.num_heads, dropout=self.dropout
-            )(x, training=training)
+            )(x, training)
         return nn.Dense(self.out_dim)(x)
 
 

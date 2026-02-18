@@ -131,7 +131,7 @@ uv run python -m fluidgenie.training.train_dynamics_st \
   --vq-ckpt runs/tokenizer/st/latest \
   --out runs/dynamics/st_lam \
   --model st_maskgit \
-  --use-lam True \
+  --use-lam \
   --lam-ckpt runs/lam/latest \
   --tok-patch-size 4 \
   --tok-model-dim 256 \

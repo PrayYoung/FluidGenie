@@ -142,7 +142,7 @@ def dynamics_ar_loss(
 def dynamics_st_loss(
     apply_fn: Callable[..., Any],
     params: Dict[str, Any],
-    tok_seq: Int[Array, "b t n"],
+    tok_seq: Int[Array, "b t h w"],
     mask_key: jax.Array,
     dropout_key: jax.Array,
     latent_actions: Float[Array, "b t m d"] | None = None,
@@ -158,8 +158,12 @@ def dynamics_st_loss(
     )
     mask = outputs["mask"].astype(jnp.float32)
     logits = outputs["token_logits"]
-    ce = optax.softmax_cross_entropy_with_integer_labels(logits, tok_seq)
+
+    b, t, n, v = logits.shape
+    tok_seq_flat = tok_seq.reshape(b, t, n)
+
+    ce = optax.softmax_cross_entropy_with_integer_labels(logits, tok_seq_flat)
     denom = jnp.maximum(mask.sum(), 1.0)
     loss = (mask * ce).sum() / denom
-    acc = (mask * (logits.argmax(-1) == tok_seq)).sum() / denom
+    acc = (mask * (logits.argmax(-1) == tok_seq_flat)).sum() / denom
     return loss, {"loss": loss, "masked_acc": acc}

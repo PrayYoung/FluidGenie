@@ -6,7 +6,7 @@ Run:
     --data data/raw/ns2d \
     --vq-ckpt runs/tokenizer/st/latest \
     --out runs/dynamics/st \
-    --use-lam False
+    --use-lam
 """
 
 from __future__ import annotations
@@ -168,8 +168,11 @@ def main():
         st_tokenizer_params,
         jnp.concatenate([x_ctx0, x_tgt0], axis=1),
     )
+    init_batch = {"video_tokens": tok_seq0, "mask_rng": rng}
+    if args.use_lam:
+        init_batch["latent_actions"] = lam_encode(lam_params, jnp.concatenate([x_ctx0, x_tgt0], axis=1))
     st_dynamics_params = st_dynamics_model.init(
-        rng, {"video_tokens": tok_seq0, "mask_rng": rng}, training=True
+        rng, init_batch, training=True
     )["params"]
 
     state = TrainState.create(
