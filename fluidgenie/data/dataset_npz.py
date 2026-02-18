@@ -12,6 +12,7 @@ class NPZSequenceDataset:
         assert self.files, f"No npy found in {data_dir}"
         self.context = context
         self.pred = pred
+        self._memmaps: list[np.ndarray] = []
         self.mean = None
         self.std = None
         if stats_path:
@@ -24,6 +25,7 @@ class NPZSequenceDataset:
         for i, f in enumerate(self.files):
             try:
                 data = np.load(f, mmap_mode="r")
+                self._memmaps.append(data)
                 T = data.shape[0]
             except Exception:
                 raise ValueError(f"Error loading {f}. Ensure it is a .npy array with shape [T,H,W,C].")
@@ -38,7 +40,7 @@ class NPZSequenceDataset:
         self, idx: int
     ) -> Tuple[Float[Array, "context h w c"], Float[Array, "pred h w c"]]:
         file_idx, t = self.index[idx]
-        fields = np.load(self.files[file_idx], mmap_mode="r")
+        fields = self._memmaps[file_idx]
         x = fields[t : t + self.context]          # [context,H,W,C]
         y = fields[t + self.context : t + self.context + self.pred]  # [pred,H,W,C]
         x = x.astype(np.float32)
@@ -56,6 +58,7 @@ def create_grain_dataloader(
     seed: int = 0,
     num_workers: int = 4,
     stats_path: str | None = None,
+    worker_buffer_size: int = 4,
 ) -> grain.DataLoader:
     source = NPZSequenceDataset(data_dir, context=context, pred=1, stats_path=stats_path)
 
@@ -77,6 +80,6 @@ def create_grain_dataloader(
         sampler=sampler,
         operations=operations,
         worker_count=num_workers,
-        worker_buffer_size=2
+        worker_buffer_size=worker_buffer_size,
     )
     return loader

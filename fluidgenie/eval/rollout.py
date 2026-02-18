@@ -241,7 +241,7 @@ def rollout_tokens_autoregressive_cached(
         decode=True,
         mutable=["cache"],
     )
-    cache = updated["cache"]
+    cache = freeze(updated["cache"])
 
     next_tok = sample_argmax(logits[:, -1, :])
 
@@ -595,7 +595,7 @@ def run_rollout_generator(
 
     preds = []
     for k in tqdm(range(horizon), desc="decode"):
-        tok_next = tok_preds[k][None, ...]
+        tok_next = tok_preds[k]
         if tokenizer_arch == "st":
             x_hat = st_decode_tokens(
                 st_tokenizer_model, st_tokenizer_params, tok_next, (H, W)
