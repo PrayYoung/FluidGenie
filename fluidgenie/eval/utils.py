@@ -134,4 +134,7 @@ def st_decode_tokens(
     tok: Int[Array, "b h w"],
     video_hw: Tuple[int, int],
 ) -> Float[Array, "b h w c"]:
-    return vq_model.apply({"params": vq_params}, tok, video_hw, method=TokenizerSTVQVAE.decode_tokens)
+    out = vq_model.apply({"params": vq_params}, tok, video_hw, method=TokenizerSTVQVAE.decode_tokens)
+    if out.ndim == 5:
+        return out[:, 0]
+    return out

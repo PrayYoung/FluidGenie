@@ -132,7 +132,7 @@ uv run python -m fluidgenie.training.train_dynamics_st \
 
 ## Visualization & Eval
 
-### Tokenizer Recon
+### Demo A: Base Tokenizer + Base Dynamics
 ```bash
 uv run python -m fluidgenie.cli.demo \
   --mode tokenizer \
@@ -142,7 +142,25 @@ uv run python -m fluidgenie.cli.demo \
   --view density
 ```
 
-### Rollout (ST‑MaskGIT)
+```bash
+uv run python -m fluidgenie.cli.demo \
+  --mode rollout \
+  --npz data/raw/ns2d/episode_000000.npy \
+  --vq-ckpt runs/tokenizer/base/latest \
+  --dyn-ckpt runs/dynamics/base/latest \
+  --out demo/rollout/base
+```
+
+### Demo B: ST Tokenizer + ST‑MaskGIT
+```bash
+uv run python -m fluidgenie.cli.demo \
+  --mode tokenizer \
+  --npz data/raw/ns2d/episode_000000.npy \
+  --vq-ckpt runs/tokenizer/st/latest \
+  --out demo/tokenizer/st \
+  --tokenizer-arch st
+```
+
 ```bash
 uv run python -m fluidgenie.cli.demo \
   --mode rollout \

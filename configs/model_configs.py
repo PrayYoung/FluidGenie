@@ -24,7 +24,7 @@ class TokenizerConfig:
     stats: str = ""
     loss_alpha: float = 1.0
     loss_beta: float = 0.25
-    loss_gamma: float = 0.5
+    loss_gamma: float = 0.1
 
     # Optional spatial-temporal tokenizer
     arch: str = "conv"  # conv | st
