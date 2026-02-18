@@ -108,12 +108,6 @@ uv run python -m fluidgenie.training.train_dynamics_st \
   --vq-ckpt runs/tokenizer/st/latest \
   --out runs/dynamics/st \
   --model st_maskgit \
-  --tok-patch-size 4 \
-  --tok-model-dim 256 \
-  --tok-num-blocks 6 \
-  --tok-num-heads 8 \
-  --tok-dropout 0.0 \
-  --tok-codebook-dropout 0.0
 ```
 
 ### Optional LAM
@@ -121,7 +115,6 @@ uv run python -m fluidgenie.training.train_dynamics_st \
 uv run python -m fluidgenie.training.train_lam \
   --data data/raw/ns2d \
   --out runs/lam \
-  --seq-len 8
 ```
 
 ### ST Dynamics + LAM
@@ -133,12 +126,6 @@ uv run python -m fluidgenie.training.train_dynamics_st \
   --model st_maskgit \
   --use-lam \
   --lam-ckpt runs/lam/latest \
-  --tok-patch-size 4 \
-  --tok-model-dim 256 \
-  --tok-num-blocks 6 \
-  --tok-num-heads 8 \
-  --tok-dropout 0.0 \
-  --tok-codebook-dropout 0.0
 ```
 
 ---

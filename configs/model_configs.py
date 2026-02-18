@@ -12,14 +12,14 @@ DEFAULT_HIDDEN = 128
 class TokenizerConfig:
     data: str
     out: str
-    batch: int = 8
-    steps: int = 5000
+    batch: int = 128
+    steps: int = 10000
     lr: float = 3e-4
     codebook: int = DEFAULT_CODEBOOK
     embed: int = DEFAULT_EMBED
     hidden: int = DEFAULT_HIDDEN
     seed: int = 0
-    log_every: int = 50
+    log_every: int = 100
     tb: int = 1
     stats: str = ""
     loss_alpha: float = 1.0
