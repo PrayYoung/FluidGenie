@@ -78,7 +78,6 @@ def main():
     rng = jax.random.PRNGKey(args.seed)
 
     stats_path = args.stats if args.stats else None
-    ds = NPZSequenceDataset(args.data, context=args.context, pred=1, stats_path=stats_path)
     loader = create_grain_dataloader(
         args.data,
         batch_size=args.batch,
@@ -94,7 +93,6 @@ def main():
     x_ctx0 = jnp.array(x_ctx0)
     x_tgt0 = jnp.array(x_tgt0)
 
-    vq_cfg = VQConfig(codebook_size=args.codebook, embed_dim=args.embed, hidden=args.hidden)
     st_tokenizer_model = TokenizerSTVQVAE(
         in_dim=C,
         model_dim=args.tok_model_dim,

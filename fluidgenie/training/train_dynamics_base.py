@@ -176,7 +176,6 @@ def main():
 
     # Dataset windows: context frames + 1 pred frame
     stats_path = args.stats if args.stats else None
-    ds = NPZSequenceDataset(args.data, context=args.context, pred=1, stats_path=stats_path)
     loader = create_grain_dataloader(
         args.data,
         batch_size=args.batch,
@@ -209,7 +208,6 @@ def main():
     vq_encode_to_tokens = jax.jit(_vq_encode_to_tokens)
 
     # Encode once to get token grid resolution
-    tok_ctx0 = encode_tokens_seq(vq_encode_to_tokens, base_tokenizer_params, x_ctx0)
     tok_tgt0 = encode_tokens_seq(vq_encode_to_tokens, base_tokenizer_params, x_tgt0)[:, 0]
 
     h_tok, w_tok = tok_tgt0.shape[1], tok_tgt0.shape[2]

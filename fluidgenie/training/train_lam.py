@@ -54,7 +54,6 @@ def main():
     rng = jax.random.PRNGKey(args.seed)
 
     stats_path = args.stats if args.stats else None
-    ds = NPZSequenceDataset(args.data, context=args.seq_len - 1, pred=1, stats_path=stats_path)
     loader = create_grain_dataloader(
         args.data,
         batch_size=args.batch,
@@ -64,9 +63,6 @@ def main():
         stats_path=stats_path,
     )
     data_iter = iter(loader)
-
-    sample_x, sample_y = ds[0]
-    H, W, C = sample_x.shape[-3:]
 
     model = LatentActionModel(
         in_dim=C,
@@ -82,6 +78,7 @@ def main():
 
     x_ctx0, x_tgt0 = next(data_iter)
     batch0 = np.concatenate([x_ctx0, x_tgt0], axis=1)
+    H, W, C = batch0.shape[-3:]
     params = model.init(rng, {"videos": jnp.array(batch0)}, training=True)["params"]
     state = TrainState.create(
         apply_fn=model.apply,

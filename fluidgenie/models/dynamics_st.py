@@ -51,6 +51,9 @@ class DynamicsSTMaskGIT(nn.Module):
         vid_embed = self.patch_embed(video_tokens)
 
         mask = batch.get("mask", None)
+        if mask is not None and mask.ndim == 4:
+            b, t, h, w = mask.shape
+            mask = mask.reshape(b, t, h * w)
         if mask is None and training:
             rng1, rng2 = jax.random.split(batch["mask_rng"])
             if self.mask_ratio_min >= self.mask_ratio_max:

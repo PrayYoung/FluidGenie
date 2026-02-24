@@ -342,20 +342,18 @@ def st_maskgit_rollout_tokens(
         k = jnp.maximum(1, jnp.floor(ratio * n).astype(jnp.int32))
 
         def update_one(conf_row, pred_row, tok_row):
-            _, keep = jax.lax.top_k(conf_row, k)
-            tok_row = tok_row.at[keep].set(pred_row[keep])
-            return tok_row, keep
+            # dynamic top-k via threshold (avoids top_k requiring static k)
+            sorted_conf = jnp.sort(conf_row)
+            kth = sorted_conf[-k]
+            keep_mask = conf_row >= kth
+            tok_row = jnp.where(keep_mask, pred_row, tok_row)
+            return tok_row, keep_mask
 
         tok_next_flat = tok_next.reshape(b, n)
-        tok_next_flat, keep_idx = jax.vmap(update_one)(conf, pred, tok_next_flat)
+        tok_next_flat, keep_mask = jax.vmap(update_one)(conf, pred, tok_next_flat)
         tok_next = tok_next_flat.reshape(b, h, w)
 
-        def update_mask(keep):
-            m = jnp.ones((n,), dtype=jnp.bool_)
-            m = m.at[keep].set(False)
-            return m
-
-        mask_flat = jax.vmap(update_mask)(keep_idx)
+        mask_flat = ~keep_mask
         mask = mask_flat.reshape(b, h, w)
         return (tok_next, mask, rng), None
 

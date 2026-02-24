@@ -67,7 +67,6 @@ def main():
 
     # Dataset
     stats_path = args.stats if args.stats else None
-    ds = NPZSequenceDataset(args.data, context=2, pred=1, stats_path=stats_path)
     if stats_path:
         stats = np.load(stats_path)
         mean = stats["mean"].reshape(1, 1, 1, -1).astype(np.float32)
@@ -86,8 +85,9 @@ def main():
     data_iter = iter(loader)
 
     # Infer input channels
-    sample_x, _ = ds[0]
-    H, W, C = sample_x.shape[-3:]
+    x_ctx0, _ = next(data_iter)
+    batch0 = x_ctx0[:, -1]
+    H, W, C = batch0.shape[-3:]
 
     # Model
     cfg = VQConfig(
@@ -98,8 +98,6 @@ def main():
     base_tokenizer_model = VQVAE(cfg, in_channels=C)
 
     # Init
-    x_ctx0, _ = next(data_iter)
-    batch0 = x_ctx0[:, -1]
     base_tokenizer_params = base_tokenizer_model.init(rng, jnp.array(batch0))["params"]
 
     state = TrainState.create(
