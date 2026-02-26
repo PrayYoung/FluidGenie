@@ -70,7 +70,9 @@ def tokenizer_st_loss(
     apply_fn: Callable[..., Any],
     params: Dict[str, Any],
     batch: Float[Array, "b t h w c"],
+    alpha: float,
     beta: float,
+    gamma: float,
     dropout_key: jax.Array,
 ) -> Tuple[Float[Array, ""], Dict[str, Float[Array, ""]]]:
     outputs = apply_fn(
@@ -79,16 +81,35 @@ def tokenizer_st_loss(
         training=True,
         rngs={"dropout": dropout_key},
     )
+    # 1. recon loss and commit/codebook losses
     recon = outputs["recon"]
-    mse = jnp.mean((recon - batch) ** 2)
+    recon_loss = jnp.mean((recon - batch) ** 2)
     q_loss = jnp.mean((jax.lax.stop_gradient(outputs["emb"]) - outputs["z"]) ** 2)
     commit_loss = jnp.mean((outputs["emb"] - jax.lax.stop_gradient(outputs["z"])) ** 2)
-    loss = mse + q_loss + beta * commit_loss
+    # 2. physical losses
+    b, t, h, w, c = batch.shape
+    batch_flat = batch.reshape(b * t, h, w, c)
+    recon_flat = recon.reshape(b * t, h, w, c)
+
+    dy_true, dx_true = spatial_grads(batch_flat)
+    dy_rec, dx_rec = spatial_grads(recon_flat)
+    grad_loss = jnp.mean((dx_rec - dx_true) ** 2 + (dy_rec - dy_true) ** 2)
+
+    w_true = compute_vorticity(batch_flat)
+    w_rec = compute_vorticity(recon_flat)
+    vorticity_loss = jnp.mean((w_rec - w_true) ** 2)
+
+    # 3. sum up
+    loss = (recon_loss + alpha * grad_loss + gamma * vorticity_loss
+            + q_loss + beta * commit_loss)
+
     return loss, {
         "loss": loss,
-        "mse": mse,
+        "recon": recon_loss,
         "q_loss": q_loss,
         "commit": commit_loss,
+        "grad": grad_loss,
+        "vorticity": vorticity_loss,
     }
 
 

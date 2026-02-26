@@ -6,6 +6,7 @@ from dataclasses import dataclass
 DEFAULT_CODEBOOK = 512
 DEFAULT_EMBED = 64
 DEFAULT_HIDDEN = 128
+DEFAULT_PATCH_SIZE = 4
 
 
 @dataclass
@@ -28,7 +29,7 @@ class TokenizerConfig:
 
     # Optional spatial-temporal tokenizer
     arch: str = "conv"  # conv | st
-    patch_size: int = 4
+    patch_size: int = DEFAULT_PATCH_SIZE
     model_dim: int = 256
     num_blocks: int = 6
     num_heads: int = 8
@@ -83,7 +84,7 @@ class DynamicsConfig:
     lam_codebook_dropout: float = 0.0
 
     # ST tokenizer settings (for train_dynamics_st)
-    tok_patch_size: int = 4
+    tok_patch_size: int = DEFAULT_PATCH_SIZE
     tok_model_dim: int = 256
     tok_num_blocks: int = 6
     tok_num_heads: int = 8

@@ -30,6 +30,7 @@ class TokenizerSTVQVAE(nn.Module):
             self.num_blocks,
             self.num_heads,
             self.dropout,
+            use_causal_mask=False,
         )
         self.vq = VectorQuantizer(
             self.latent_dim,
@@ -43,6 +44,7 @@ class TokenizerSTVQVAE(nn.Module):
             self.num_blocks,
             self.num_heads,
             self.dropout,
+            use_causal_mask=False,
         )
 
     def __call__(

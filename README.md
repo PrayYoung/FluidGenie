@@ -179,6 +179,13 @@ uv run python -m fluidgenie.cli.eval_codebook \
   --vq-ckpt runs/tokenizer/base/latest
 ```
 
+```bash
+uv run python -m fluidgenie.cli.eval_codebook \
+  --data data/raw/ns2d \
+  --vq-ckpt runs/tokenizer/st/latest \
+  --tokenizer-arch st
+```
+
 ---
 
 ## Optional: Normalization Stats

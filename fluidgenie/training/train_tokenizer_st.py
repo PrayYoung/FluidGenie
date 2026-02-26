@@ -21,7 +21,7 @@ from jaxtyping import Array, Float
 import tyro
 
 from configs.model_configs import TokenizerConfig
-from fluidgenie.data.dataset_npz import NPZSequenceDataset, create_grain_dataloader
+from fluidgenie.data.dataset_npz import create_grain_dataloader
 from fluidgenie.training.logging_utils import TrainingLogger
 from fluidgenie.training.losses import tokenizer_st_loss
 from fluidgenie.training.checkpoint_utils import save_params
@@ -32,7 +32,7 @@ class TrainState(train_state.TrainState):
     pass
 
 
-def make_train_step(beta: float):
+def make_train_step(alpha:float, beta: float, gamma: float):
     @jax.jit
     def _train_step(
         state: TrainState,
@@ -40,7 +40,7 @@ def make_train_step(beta: float):
         dropout_key: jax.Array,
     ):
         def loss_fn(params):
-            return tokenizer_st_loss(state.apply_fn, params, batch, beta, dropout_key)
+            return tokenizer_st_loss(state.apply_fn, params, batch, alpha, beta, gamma, dropout_key)
 
         (loss, metrics), grads = jax.value_and_grad(loss_fn, has_aux=True)(state.params)
         state = state.apply_gradients(grads=grads)
@@ -64,6 +64,9 @@ def main():
         stats_path=stats_path,
     )
     data_iter = iter(loader)
+    x_ctx0, x_tgt0 = next(data_iter)
+    batch0 = np.concatenate([x_ctx0, x_tgt0], axis=1)
+    H, W, C = batch0.shape[-3:]
 
     st_tokenizer_model = TokenizerSTVQVAE(
         in_dim=C,
@@ -77,9 +80,6 @@ def main():
         codebook_dropout=args.codebook_dropout,
     )
 
-    x_ctx0, x_tgt0 = next(data_iter)
-    batch0 = np.concatenate([x_ctx0, x_tgt0], axis=1)
-    H, W, C = batch0.shape[-3:]
     st_tokenizer_params = st_tokenizer_model.init(
         rng, {"videos": jnp.array(batch0)}, training=True
     )["params"]

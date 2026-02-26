@@ -23,20 +23,18 @@ from __future__ import annotations
 
 from configs.model_configs import DynamicsConfig
 from pathlib import Path
-from typing import Iterator, Tuple
+from typing import Tuple
 
-import numpy as np
 import jax
 import jax.numpy as jnp
 import optax
-from flax import linen as nn
 from flax.training import train_state
 from tqdm import trange
 from einops import rearrange
 from jaxtyping import Array, Float, Int
 import tyro
 
-from fluidgenie.data.dataset_npz import NPZSequenceDataset, create_grain_dataloader
+from fluidgenie.data.dataset_npz import create_grain_dataloader
 from fluidgenie.training.logging_utils import TrainingLogger
 from fluidgenie.training.losses import dynamics_ar_loss
 from fluidgenie.training.checkpoint_utils import save_params, load_params

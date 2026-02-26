@@ -26,6 +26,7 @@ class STBlock(nn.Module):
     dim: int
     num_heads: int
     dropout: float
+    use_causal_mask: bool
 
     @functools.partial(nn.remat, static_argnums=(2,))
     @nn.compact
@@ -45,13 +46,16 @@ class STBlock(nn.Module):
         x = x.swapaxes(1, 2)
         z = PositionalEncoding(self.dim)(x)
         z = nn.LayerNorm()(z)
-        causal_mask = jnp.tri(z.shape[-2])
+        if self.use_causal_mask:
+            attn_mask = jnp.tri(z.shape[-2])
+        else:
+            attn_mask = None
         z = nn.MultiHeadAttention(
             num_heads=self.num_heads,
             qkv_features=self.dim,
             dropout_rate=self.dropout,
             deterministic=not training,
-        )(z, mask=causal_mask)
+        )(z, mask=attn_mask)
         x = x + z
         x = x.swapaxes(1, 2)
 
@@ -69,6 +73,7 @@ class STTransformer(nn.Module):
     num_blocks: int
     num_heads: int
     dropout: float
+    use_causal_mask: bool = False
 
     @nn.compact
     def __call__(
@@ -77,7 +82,8 @@ class STTransformer(nn.Module):
         x = nn.Sequential([nn.LayerNorm(), nn.Dense(self.model_dim), nn.LayerNorm()])(x)
         for _ in range(self.num_blocks):
             x = STBlock(
-                dim=self.model_dim, num_heads=self.num_heads, dropout=self.dropout
+                dim=self.model_dim, num_heads=self.num_heads, dropout=self.dropout,
+                use_causal_mask=self.use_causal_mask,
             )(x, training)
         return nn.Dense(self.out_dim)(x)
 
@@ -112,8 +118,10 @@ class VectorQuantizer(nn.Module):
         x = normalize(x)
         codebook = normalize(self.codebook)
         distance = -jnp.matmul(x, codebook.T)
-        if training:
-            distance = self.drop(distance, deterministic=False)
+        if training and self.dropout > 0 and self.has_rng("dropout"):
+            mask = jax.random.bernoulli(
+            self.make_rng("dropout"), p=1.0-self.dropout, shape=distance.shape)
+            distance = jnp.where(mask, distance, 1e9)
 
         indices = jnp.argmin(distance, axis=-1)
         z = self.codebook[indices]

@@ -65,9 +65,11 @@ def main() -> None:
             x = (x - mean) / (std + 1e-6)
         x = jnp.array(x, dtype=jnp.float32)
         if args.tokenizer_arch == "st":
-            tok = st_tokenizer_model.apply(
-                {"params": tokenizer_params}, x, method=TokenizerSTVQVAE.encode_frame
-            )
+            tok = jax.vmap(
+                lambda f: st_tokenizer_model.apply(
+                    {"params": tokenizer_params}, f[None, ...], method=TokenizerSTVQVAE.encode_frame
+                )[0]
+            )(x)
         else:
             _x_rec, tok, _c, _cb = base_tokenizer_model.apply(
                 {"params": tokenizer_params}, x

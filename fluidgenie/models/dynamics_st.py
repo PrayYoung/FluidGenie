@@ -28,6 +28,7 @@ class DynamicsSTMaskGIT(nn.Module):
             self.num_blocks,
             self.num_heads,
             self.dropout,
+            use_causal_mask=True,
         )
         self.patch_embed = nn.Embed(self.num_latents, self.model_dim)
         self.mask_token = self.param(
