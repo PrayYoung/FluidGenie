@@ -38,17 +38,24 @@ uv run python -m fluidgenie.data.gen_phiflow_ns2d \
   --episodes 50 \
   --steps 120
 
+# 1.5) Compute normalization stats
+uv run python -m fluidgenie.data.compute_stats \
+  --data data/raw/ns2d \
+  --out data/stats/ns2d_stats.npz
+
 # 2) Train tokenizer (Conv VQ)
 uv run python -m fluidgenie.training.train_tokenizer_base \
   --data data/raw/ns2d \
-  --out runs/tokenizer/base
+  --out runs/tokenizer/base \
+  --stats data/stats/ns2d_stats.npz
 
 # 3) Train dynamics (AR)
 uv run python -m fluidgenie.training.train_dynamics_base \
   --data data/raw/ns2d \
   --vq-ckpt runs/tokenizer/base/latest \
   --out runs/dynamics/base \
-  --model transformer
+  --model transformer \
+  --stats data/stats/ns2d_stats.npz
 
 # 4) Rollout
 uv run python -m fluidgenie.cli.demo \
@@ -56,7 +63,8 @@ uv run python -m fluidgenie.cli.demo \
   --npz data/raw/ns2d/episode_000000.npy \
   --vq-ckpt runs/tokenizer/base/latest \
   --dyn-ckpt runs/dynamics/base/latest \
-  --out demo/rollout/base
+  --out demo/rollout/base \
+  --stats data/stats/ns2d_stats.npz
 ```
 
 ---
@@ -77,7 +85,8 @@ uv run python -m fluidgenie.training.train_dynamics_base \
   --data data/raw/ns2d \
   --vq-ckpt runs/tokenizer/base/latest \
   --out runs/dynamics/base \
-  --model transformer
+  --model transformer \
+  --stats data/stats/ns2d_stats.npz
 ```
 
 ### Dynamics (MaskGIT)
@@ -86,7 +95,8 @@ uv run python -m fluidgenie.training.train_dynamics_base \
   --data data/raw/ns2d \
   --vq-ckpt runs/tokenizer/base/latest \
   --out runs/dynamics/base_maskgit \
-  --model maskgit
+  --model maskgit \
+  --stats data/stats/ns2d_stats.npz
 ```
 
 ---
@@ -98,7 +108,8 @@ uv run python -m fluidgenie.training.train_dynamics_base \
 uv run python -m fluidgenie.training.train_tokenizer_st \
   --data data/raw/ns2d \
   --out runs/tokenizer/st \
-  --seq-len 4
+  --seq-len 4 \
+  --stats data/stats/ns2d_stats.npz
 ```
 
 ### ST Dynamics
@@ -108,6 +119,7 @@ uv run python -m fluidgenie.training.train_dynamics_st \
   --vq-ckpt runs/tokenizer/st/latest \
   --out runs/dynamics/st \
   --model st_maskgit \
+  --stats data/stats/ns2d_stats.npz
 ```
 
 ### Optional LAM
@@ -115,6 +127,7 @@ uv run python -m fluidgenie.training.train_dynamics_st \
 uv run python -m fluidgenie.training.train_lam \
   --data data/raw/ns2d \
   --out runs/lam \
+  --stats data/stats/ns2d_stats.npz
 ```
 
 ### ST Dynamics + LAM
@@ -126,6 +139,7 @@ uv run python -m fluidgenie.training.train_dynamics_st \
   --model st_maskgit \
   --use-lam \
   --lam-ckpt runs/lam/latest \
+  --stats data/stats/ns2d_stats.npz
 ```
 
 ---
@@ -139,7 +153,8 @@ uv run python -m fluidgenie.cli.demo \
   --npz data/raw/ns2d/episode_000000.npy \
   --vq-ckpt runs/tokenizer/base/latest \
   --out demo/tokenizer/base \
-  --view density
+  --view density \
+  --stats data/stats/ns2d_stats.npz
 ```
 
 ```bash
@@ -148,7 +163,8 @@ uv run python -m fluidgenie.cli.demo \
   --npz data/raw/ns2d/episode_000000.npy \
   --vq-ckpt runs/tokenizer/base/latest \
   --dyn-ckpt runs/dynamics/base/latest \
-  --out demo/rollout/base
+  --out demo/rollout/base \
+  --stats data/stats/ns2d_stats.npz
 ```
 
 ### Demo B: ST Tokenizer + ST‑MaskGIT
@@ -158,7 +174,8 @@ uv run python -m fluidgenie.cli.demo \
   --npz data/raw/ns2d/episode_000000.npy \
   --vq-ckpt runs/tokenizer/st/latest \
   --out demo/tokenizer/st \
-  --tokenizer-arch st
+  --tokenizer-arch st \
+  --stats data/stats/ns2d_stats.npz
 ```
 
 ```bash
@@ -169,21 +186,24 @@ uv run python -m fluidgenie.cli.demo \
   --dyn-ckpt runs/dynamics/st/latest \
   --out demo/rollout/st \
   --model st_maskgit \
-  --tokenizer-arch st
+  --tokenizer-arch st \
+  --stats data/stats/ns2d_stats.npz
 ```
 
 ### Codebook Usage (collapse check)
 ```bash
 uv run python -m fluidgenie.cli.eval_codebook \
   --data data/raw/ns2d \
-  --vq-ckpt runs/tokenizer/base/latest
+  --vq-ckpt runs/tokenizer/base/latest \
+  --stats data/stats/ns2d_stats.npz
 ```
 
 ```bash
 uv run python -m fluidgenie.cli.eval_codebook \
   --data data/raw/ns2d \
   --vq-ckpt runs/tokenizer/st/latest \
-  --tokenizer-arch st
+  --tokenizer-arch st \
+  --stats data/stats/ns2d_stats.npz
 ```
 
 ---
