@@ -93,7 +93,7 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     logger = TrainingLogger(out, run_name="tokenizer_st", log_every=args.log_every, use_tb=bool(args.tb))
     dropout_rng = jax.random.PRNGKey(args.seed + 1)
-    train_step = make_train_step(args.loss_beta)
+    train_step = make_train_step(args.loss_alpha, args.loss_beta, args.loss_gamma)
 
     for step in trange(args.steps):
         x_ctx, x_tgt = next(data_iter)

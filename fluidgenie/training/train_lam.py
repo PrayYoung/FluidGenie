@@ -63,6 +63,9 @@ def main():
         stats_path=stats_path,
     )
     data_iter = iter(loader)
+    x_ctx0, x_tgt0 = next(data_iter)
+    batch0 = np.concatenate([x_ctx0, x_tgt0], axis=1)
+    H, W, C = batch0.shape[-3:]
 
     model = LatentActionModel(
         in_dim=C,
@@ -76,9 +79,6 @@ def main():
         codebook_dropout=args.codebook_dropout,
     )
 
-    x_ctx0, x_tgt0 = next(data_iter)
-    batch0 = np.concatenate([x_ctx0, x_tgt0], axis=1)
-    H, W, C = batch0.shape[-3:]
     params = model.init(rng, {"videos": jnp.array(batch0)}, training=True)["params"]
     state = TrainState.create(
         apply_fn=model.apply,
