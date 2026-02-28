@@ -80,15 +80,6 @@ class TrainState(train_state.TrainState):
     pass
 
 
-def make_causal_mask(L: int) -> jnp.ndarray:
-    """
-    Standard causal mask for self-attention: [1, 1, L, L]
-    """
-    # Flax SelfAttention uses causal=True option instead of explicit mask; keep utility in case.
-    m = jnp.tril(jnp.ones((L, L), dtype=jnp.bool_))
-    return m[None, None, :, :]
-
-
 def make_train_step(
     model_type: str,
     mask_token_id: int,
@@ -152,6 +143,7 @@ def make_train_step(
                 L_in,
                 dropout_key,
                 mask if model_type == "maskgit" else None,
+                causal=(model_type != "maskgit"),
             )
 
         (loss, metrics), grads = jax.value_and_grad(loss_fn, has_aux=True)(state.params)

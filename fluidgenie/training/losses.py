@@ -148,8 +148,15 @@ def dynamics_ar_loss(
     l_in: int,
     dropout_key: jax.Array,
     mask: Bool[Array, "b l_out"] | None = None,
+    causal: bool = True,
 ) -> Tuple[Float[Array, ""], Dict[str, Float[Array, ""]]]:
-    logits = apply_fn({"params": params}, seq, train=True, rngs={"dropout": dropout_key})
+    logits = apply_fn(
+        {"params": params},
+        seq,
+        train=True,
+        rngs={"dropout": dropout_key},
+        causal=causal,
+    )
     logits_tgt = logits[:, l_in:, :]
     ce = optax.softmax_cross_entropy_with_integer_labels(logits_tgt, tok_tgt)
     if mask is not None:

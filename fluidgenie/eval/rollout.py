@@ -41,13 +41,17 @@ def sample_argmax(logits: Float[Array, "b v"]) -> Int[Array, "b"]:
     return jnp.argmax(logits, axis=-1).astype(jnp.int32)
 
 
-def _denorm(x: Float[Array, "... c"], mean, std) -> Float[Array, "... c"]:
+def _denorm(x: Float[Array, "... c"], mean, std, min_v=None, denom=None) -> Float[Array, "... c"]:
+    if min_v is not None and denom is not None:
+        return (x + 1.0) * 0.5 * denom + min_v
     if mean is None:
         return x
     return x * (std + 1e-6) + mean
 
 
-def _norm(x: Float[Array, "... c"], mean, std) -> Float[Array, "... c"]:
+def _norm(x: Float[Array, "... c"], mean, std, min_v=None, denom=None) -> Float[Array, "... c"]:
+    if min_v is not None and denom is not None:
+        return (x - min_v) / denom * 2.0 - 1.0
     if mean is None:
         return x
     return (x - mean) / (std + 1e-6)
@@ -289,13 +293,15 @@ def maskgit_rollout_tokens(
         t = (step + 1) / mask_steps
         ratio = 0.5 * (1.0 + jnp.cos(jnp.pi * t))
         k = jnp.maximum(1, jnp.floor((1.0 - ratio) * L_out).astype(jnp.int32))
+        # history protection / flickering prevention:
+        # ensure we never unmask tokens that were already unmasked in previous steps
+        is_masked = tok_out == mask_token_id
+        conf_protected = jnp.where(~is_masked, 1e9, conf)
 
-        def update_one(conf_row, pred_row, tok_row):
-            _, keep = jax.lax.top_k(conf_row, k)
-            tok_row = tok_row.at[keep].set(pred_row[keep])
-            return tok_row
+        kth = jnp.sort(conf_protected, axis=-1)[:, -k]
+        should_unmask = conf >= kth[:, None]
 
-        tok_out = jax.vmap(update_one)(conf, pred, tok_out)
+        tok_out = jnp.where(should_unmask, pred, mask_token_id)
         return tok_out, None
 
     tok_init = jnp.full((B, L_out), mask_token_id, dtype=jnp.int32)
@@ -336,25 +342,22 @@ def st_maskgit_rollout_tokens(
         probs = jax.nn.softmax(logits_last, axis=-1)
         pred = jnp.argmax(probs, axis=-1).astype(jnp.int32)
         conf = jnp.max(probs, axis=-1)
-
+        # decoding progress
         t_ratio = (step_idx + 1) / mask_steps
         ratio = 0.5 * (1.0 + jnp.cos(jnp.pi * t_ratio))
+        # 'k': the absolute number of tokens to UNMASK (keep) at this step
         k = jnp.maximum(1, jnp.floor((1.0 - ratio) * n).astype(jnp.int32))
-
-        def update_one(conf_row, pred_row, tok_row):
-            # dynamic top-k via threshold (avoids top_k requiring static k)
-            sorted_conf = jnp.sort(conf_row)
-            kth = sorted_conf[-k]
-            keep_mask = conf_row >= kth
-            tok_row = jnp.where(keep_mask, pred_row, tok_row)
-            return tok_row, keep_mask
-
-        tok_next_flat = tok_next.reshape(b, n)
-        tok_next_flat, keep_mask = jax.vmap(update_one)(conf, pred, tok_next_flat)
+        # ensure tokens we masked in previous step are never masked again
+        # history protection
+        mask_flat = mask.reshape(b, n)
+        conf_protected = jnp.where(~mask_flat, 1e9, conf)
+        # compare all confidence scores against the threshold
+        kth = jnp.sort(conf_protected, axis=-1)[:, -k]
+        is_unmasked = conf >= kth[:, None]
+        # invert 'is_unmask' to create the new mask for the next step
+        tok_next_flat = jnp.where(is_unmasked, pred, tok_next.reshape(b, n))
         tok_next = tok_next_flat.reshape(b, h, w)
-
-        mask_flat = ~keep_mask
-        mask = mask_flat.reshape(b, h, w)
+        mask = (~is_unmasked).reshape(b, h, w)
         return (tok_next, mask, rng), None
 
     (tok_next, _, _), _ = jax.lax.scan(step_fn, (tok_next0, mask0, rng_key), jnp.arange(mask_steps))
@@ -432,13 +435,26 @@ def run_rollout_generator(
 
     if stats_path:
         stats = np.load(stats_path)
-        mean = stats["mean"].reshape(1, 1, 1, -1)
-        std = stats["std"].reshape(1, 1, 1, -1)
+        if "min" in stats and "max" in stats:
+            min_v = stats["min"].reshape(1, 1, 1, -1)
+            max_v = stats["max"].reshape(1, 1, 1, -1)
+            denom = (max_v - min_v) + 1e-6
+            mean = None
+            std = None
+        else:
+            mean = stats["mean"].reshape(1, 1, 1, -1)
+            std = stats["std"].reshape(1, 1, 1, -1)
+            min_v = None
+            max_v = None
+            denom = None
     else:
         mean = None
         std = None
+        min_v = None
+        max_v = None
+        denom = None
 
-    x0 = jnp.array(_norm(fields[start][None, ...], mean, std), dtype=jnp.float32)
+    x0 = jnp.array(_norm(fields[start][None, ...], mean, std, min_v, denom), dtype=jnp.float32)
     tok0 = vq_encode_tokens(
         st_tokenizer_params if tokenizer_arch == "st" else base_tokenizer_params, x0
     )
@@ -524,7 +540,7 @@ def run_rollout_generator(
         )["params"]
         lam_params = load_params(lam_ckpt, lam_init)
 
-    ctx_frames_dyn = _norm(fields[start : start + context], mean, std)
+    ctx_frames_dyn = _norm(fields[start : start + context], mean, std, min_v, denom)
 
     def flatten_ctx(tok_ctx: Int[Array, "b t h w"]) -> Int[Array, "b l_in"]:
         return tok_ctx.reshape((tok_ctx.shape[0], -1))
@@ -544,6 +560,13 @@ def run_rollout_generator(
                     method=LatentActionModel.vq_encode,
                 )
                 latent_actions = lam_out["z_q"]
+                # LAM returns length T-1. Pad one step so dynamics sees length `context`.
+                if latent_actions.shape[1] == context - 1:
+                    pad = jnp.zeros(
+                        (latent_actions.shape[0], 1, latent_actions.shape[2], latent_actions.shape[3]),
+                        dtype=latent_actions.dtype,
+                    )
+                    latent_actions = jnp.concatenate([latent_actions, pad], axis=1)
             tok_next = st_maskgit_rollout_tokens(
                 st_dynamics_model,
                 st_dynamics_params,
@@ -607,7 +630,7 @@ def run_rollout_generator(
             x_hat = vq_decode_tokens(
                 vq_cfg, dec_params, codebook, tok_next, out_channels=C
             )
-        x_hat = _denorm(x_hat, mean, std)
+        x_hat = _denorm(x_hat, mean, std, min_v, denom)
         preds.append(np.array(x_hat[0]))
 
     preds = np.stack(preds, axis=0)

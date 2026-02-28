@@ -70,9 +70,15 @@ def save_tokenizer_recon(
 
     if stats_path:
         stats = np.load(stats_path)
-        mean = stats["mean"].reshape(1, 1, -1)
-        std = stats["std"].reshape(1, 1, -1)
-        x_norm = (x - mean) / (std + 1e-6)
+        if "min" in stats and "max" in stats:
+            min_v = stats["min"].reshape(1, 1, -1)
+            max_v = stats["max"].reshape(1, 1, -1)
+            denom = (max_v - min_v) + 1e-6
+            x_norm = (x - min_v) / denom * 2.0 - 1.0
+        else:
+            mean = stats["mean"].reshape(1, 1, -1)
+            std = stats["std"].reshape(1, 1, -1)
+            x_norm = (x - mean) / (std + 1e-6)
     else:
         x_norm = x
 
@@ -89,7 +95,10 @@ def save_tokenizer_recon(
         x_rec = np.array(x_rec[0])
         tok = np.array(tok[0])
     if stats_path:
-        x_rec = x_rec * (std + 1e-6) + mean
+        if "min" in stats and "max" in stats:
+            x_rec = (x_rec + 1.0) * 0.5 * denom + min_v
+        else:
+            x_rec = x_rec * (std + 1e-6) + mean
     tok = np.array(tok)
 
     fig = plt.figure(figsize=(12, 4))
@@ -152,7 +161,10 @@ def save_tokenizer_recon(
         x_t = fields[t]
         x_in = x_t
         if stats_path:
-            x_in = (x_t - mean) / (std + 1e-6)
+            if "min" in stats and "max" in stats:
+                x_in = (x_t - min_v) / denom * 2.0 - 1.0
+            else:
+                x_in = (x_t - mean) / (std + 1e-6)
         x_in = jnp.array(x_in[None, ...], dtype=jnp.float32)
         if tokenizer_arch == "st":
             tok = vq_encode_tokens(st_tokenizer_params, x_in)[0]
@@ -164,7 +176,10 @@ def save_tokenizer_recon(
             x_rec = np.array(x_rec[0])
             tok = np.array(tok[0])
         if stats_path:
-            x_rec = x_rec * (std + 1e-6) + mean
+            if "min" in stats and "max" in stats:
+                x_rec = (x_rec + 1.0) * 0.5 * denom + min_v
+            else:
+                x_rec = x_rec * (std + 1e-6) + mean
         tok = np.array(tok)
 
         fig = plt.figure(figsize=(12, 4))

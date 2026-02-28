@@ -29,13 +29,17 @@ def update_running_mean_var(
     return new_mean, new_var, total
 
 
-def compute_stats(data_dir: str) -> tuple[Float[Array, "c"], Float[Array, "c"]]:
+def compute_stats(data_dir: str) -> tuple[
+    Float[Array, "c"], Float[Array, "c"], Float[Array, "c"], Float[Array, "c"]
+]:
     files = sorted(glob.glob(os.path.join(data_dir, "*.npy")))
     assert files, f"No npy found in {data_dir}"
 
     mean = None
     var = None
     count = 0
+    min_v = None
+    max_v = None
 
     for f in files:
         fields = np.load(f, mmap_mode="r")  # [T,H,W,C]
@@ -44,16 +48,27 @@ def compute_stats(data_dir: str) -> tuple[Float[Array, "c"], Float[Array, "c"]]:
         x = x.reshape(-1, x.shape[-1])
         batch_mean = x.mean(axis=0)
         batch_var = x.var(axis=0)
+        batch_min = x.min(axis=0)
+        batch_max = x.max(axis=0)
         batch_count = x.shape[0]
         if mean is None:
             mean = batch_mean
             var = batch_var
             count = batch_count
+            min_v = batch_min
+            max_v = batch_max
         else:
             mean, var, count = update_running_mean_var(mean, var, count, batch_mean, batch_var, batch_count)
+            min_v = np.minimum(min_v, batch_min)
+            max_v = np.maximum(max_v, batch_max)
 
     std = np.sqrt(var)
-    return mean.astype(np.float32), std.astype(np.float32)
+    return (
+        mean.astype(np.float32),
+        std.astype(np.float32),
+        min_v.astype(np.float32),
+        max_v.astype(np.float32),
+    )
 
 
 def main():
@@ -62,13 +77,15 @@ def main():
     ap.add_argument("--out", type=str, required=True, help="Output .npz path for mean/std")
     args = ap.parse_args()
 
-    mean, std = compute_stats(args.data)
+    mean, std, min_v, max_v = compute_stats(args.data)
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    np.savez(out, mean=mean, std=std)
+    np.savez(out, mean=mean, std=std, min=min_v, max=max_v)
     print(f"Saved stats to {out}")
     print("mean:", mean)
     print("std:", std)
+    print("min:", min_v)
+    print("max:", max_v)
 
 
 if __name__ == "__main__":

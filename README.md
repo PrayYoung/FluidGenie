@@ -161,12 +161,26 @@ uv run python -m fluidgenie.cli.demo \
 ```
 
 ```bash
+# AR rollout (default model=transformer)
 uv run python -m fluidgenie.cli.demo \
   --mode rollout \
   --npz data/raw/ns2d/episode_000000.npy \
   --vq-ckpt runs/tokenizer/base/latest \
   --dyn-ckpt runs/dynamics/base/latest \
-  --out demo/rollout/base \
+  --out demo/rollout/base_ar \
+  --model transformer \
+  --stats data/stats/ns2d_stats.npz
+```
+
+```bash
+# MaskGIT rollout
+uv run python -m fluidgenie.cli.demo \
+  --mode rollout \
+  --npz data/raw/ns2d/episode_000000.npy \
+  --vq-ckpt runs/tokenizer/base/latest \
+  --dyn-ckpt runs/dynamics/base_maskgit/latest \
+  --out demo/rollout/base_maskgit \
+  --model maskgit \
   --stats data/stats/ns2d_stats.npz
 ```
 

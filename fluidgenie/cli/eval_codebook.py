@@ -54,14 +54,29 @@ def main() -> None:
 
     if args.stats:
         stats = np.load(args.stats)
-        mean = stats["mean"].reshape(1, 1, 1, -1)
-        std = stats["std"].reshape(1, 1, 1, -1)
+        if "min" in stats and "max" in stats:
+            min_v = stats["min"].reshape(1, 1, 1, -1)
+            max_v = stats["max"].reshape(1, 1, 1, -1)
+            denom = (max_v - min_v) + 1e-6
+            mean = None
+            std = None
+        else:
+            mean = stats["mean"].reshape(1, 1, 1, -1)
+            std = stats["std"].reshape(1, 1, 1, -1)
+            min_v = None
+            max_v = None
+            denom = None
     else:
         mean = None
         std = None
+        min_v = None
+        max_v = None
+        denom = None
 
     def encode(x: Float[Array, "t h w c"]) -> Int[Array, "t h2 w2"]:
-        if mean is not None:
+        if min_v is not None and denom is not None:
+            x = (x - min_v) / denom * 2.0 - 1.0
+        elif mean is not None:
             x = (x - mean) / (std + 1e-6)
         x = jnp.array(x, dtype=jnp.float32)
         if args.tokenizer_arch == "st":

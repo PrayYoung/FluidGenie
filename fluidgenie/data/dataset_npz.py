@@ -15,10 +15,15 @@ class NPZSequenceDataset:
         self._memmaps: list[np.ndarray] = []
         self.mean = None
         self.std = None
+        self.min_v = None
+        self.max_v = None
         if stats_path:
             stats = np.load(stats_path)
             self.mean = stats["mean"].astype(np.float32)
             self.std = stats["std"].astype(np.float32)
+            if "min" in stats and "max" in stats:
+                self.min_v = stats["min"].astype(np.float32)
+                self.max_v = stats["max"].astype(np.float32)
 
         # build an index mapping (file_idx, start_t)
         self.index = []
@@ -45,7 +50,11 @@ class NPZSequenceDataset:
         y = fields[t + self.context : t + self.context + self.pred]  # [pred,H,W,C]
         x = x.astype(np.float32)
         y = y.astype(np.float32)
-        if self.mean is not None and self.std is not None:
+        if self.min_v is not None and self.max_v is not None:
+            denom = (self.max_v - self.min_v) + 1e-6
+            x = (x - self.min_v) / denom * 2.0 - 1.0
+            y = (y - self.min_v) / denom * 2.0 - 1.0
+        elif self.mean is not None and self.std is not None:
             x = (x - self.mean) / (self.std + 1e-6)
             y = (y - self.mean) / (self.std + 1e-6)
         return x, y

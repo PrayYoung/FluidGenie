@@ -22,6 +22,7 @@ class TransformerDynamics(nn.Module):
         tok_seq: Int[Array, "b l"],
         train: bool,
         decode: bool = False,
+        causal: bool = True,
     ) -> Float[Array, "b l vocab"]:
         """
         tok_seq: int32 [B, L]
@@ -39,7 +40,7 @@ class TransformerDynamics(nn.Module):
             mask = None
         else:
             x = x + pos[None, : x.shape[1], :]
-            mask = nn.make_causal_mask(tok_seq, dtype=jnp.bool_)
+            mask = nn.make_causal_mask(tok_seq, dtype=jnp.bool_) if causal else None
 
         x = nn.Dropout(self.cfg.dropout)(x, deterministic=not train)
 
