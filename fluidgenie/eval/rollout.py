@@ -285,10 +285,10 @@ def maskgit_rollout_tokens(
         pred = jnp.argmax(probs, axis=-1).astype(jnp.int32)
         conf = jnp.max(probs, axis=-1)
 
-        # mask schedule (cosine)
+        # mask schedule (cosine): reveal from few -> many
         t = (step + 1) / mask_steps
         ratio = 0.5 * (1.0 + jnp.cos(jnp.pi * t))
-        k = jnp.maximum(1, jnp.floor(ratio * L_out).astype(jnp.int32))
+        k = jnp.maximum(1, jnp.floor((1.0 - ratio) * L_out).astype(jnp.int32))
 
         def update_one(conf_row, pred_row, tok_row):
             _, keep = jax.lax.top_k(conf_row, k)
@@ -339,7 +339,7 @@ def st_maskgit_rollout_tokens(
 
         t_ratio = (step_idx + 1) / mask_steps
         ratio = 0.5 * (1.0 + jnp.cos(jnp.pi * t_ratio))
-        k = jnp.maximum(1, jnp.floor(ratio * n).astype(jnp.int32))
+        k = jnp.maximum(1, jnp.floor((1.0 - ratio) * n).astype(jnp.int32))
 
         def update_one(conf_row, pred_row, tok_row):
             # dynamic top-k via threshold (avoids top_k requiring static k)
@@ -462,8 +462,13 @@ def run_rollout_generator(
         tok_seq0 = jnp.concatenate(
             [jnp.repeat(tok0[:, None, ...], context, axis=1), tok0[:, None, ...]], axis=1
         )
+        init_batch = {"video_tokens": tok_seq0, "mask_rng": mask_rng}
+        if use_lam:
+            init_batch["latent_actions"] = jnp.zeros(
+                (1, context, 1, lam_latent_dim), dtype=jnp.float32
+            )
         st_dynamics_init = st_dynamics_model.init(
-            rng, {"video_tokens": tok_seq0, "mask_rng": mask_rng}, training=False
+            rng, init_batch, training=False
         )["params"]
         st_dynamics_params = load_params(dyn_ckpt, st_dynamics_init)
     else:

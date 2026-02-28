@@ -101,9 +101,9 @@ uv run python -m fluidgenie.training.train_dynamics_base \
 
 ---
 
-## Pipeline B: ST‑VQ + ST‑MaskGIT (+ LAM)
+## Pipeline B: ST‑VQ + ST‑MaskGIT
 
-### ST Tokenizer
+### ST Tokenizer (shared)
 ```bash
 uv run python -m fluidgenie.training.train_tokenizer_st \
   --data data/raw/ns2d \
@@ -112,17 +112,19 @@ uv run python -m fluidgenie.training.train_tokenizer_st \
   --stats data/stats/ns2d_stats.npz
 ```
 
-### ST Dynamics
+### Pipeline B1: ST Dynamics (no LAM)
+Use a dedicated output folder for non‑LAM dynamics.
 ```bash
 uv run python -m fluidgenie.training.train_dynamics_st \
   --data data/raw/ns2d \
   --vq-ckpt runs/tokenizer/st/latest \
-  --out runs/dynamics/st \
+  --out runs/dynamics/st_nolam \
   --model st_maskgit \
   --stats data/stats/ns2d_stats.npz
 ```
 
-### Optional LAM
+### Pipeline B2: ST Dynamics + LAM
+#### Train LAM
 ```bash
 uv run python -m fluidgenie.training.train_lam \
   --data data/raw/ns2d \
@@ -130,7 +132,8 @@ uv run python -m fluidgenie.training.train_lam \
   --stats data/stats/ns2d_stats.npz
 ```
 
-### ST Dynamics + LAM
+#### Train ST Dynamics (with LAM)
+Use a separate output folder to avoid mixing weights.
 ```bash
 uv run python -m fluidgenie.training.train_dynamics_st \
   --data data/raw/ns2d \
@@ -167,7 +170,7 @@ uv run python -m fluidgenie.cli.demo \
   --stats data/stats/ns2d_stats.npz
 ```
 
-### Demo B: ST Tokenizer + ST‑MaskGIT
+### Demo B1: ST Tokenizer + ST‑MaskGIT (no LAM)
 ```bash
 uv run python -m fluidgenie.cli.demo \
   --mode tokenizer \
@@ -183,13 +186,27 @@ uv run python -m fluidgenie.cli.demo \
   --mode rollout \
   --npz data/raw/ns2d/episode_000000.npy \
   --vq-ckpt runs/tokenizer/st/latest \
-  --dyn-ckpt runs/dynamics/st/latest \
-  --out demo/rollout/st \
+  --dyn-ckpt runs/dynamics/st_nolam/latest \
+  --out demo/rollout/st_nolam \
   --model st_maskgit \
   --tokenizer-arch st \
   --stats data/stats/ns2d_stats.npz
 ```
 
+### Demo B2: ST Tokenizer + ST‑MaskGIT + LAM
+```bash
+uv run python -m fluidgenie.cli.demo \
+  --mode rollout \
+  --npz data/raw/ns2d/episode_000000.npy \
+  --vq-ckpt runs/tokenizer/st/latest \
+  --dyn-ckpt runs/dynamics/st_lam/latest \
+  --out demo/rollout/st_lam \
+  --model st_maskgit \
+  --tokenizer-arch st \
+  --use-lam \
+  --lam-ckpt runs/lam/latest \
+  --stats data/stats/ns2d_stats.npz
+```
 ### Codebook Usage (collapse check)
 ```bash
 uv run python -m fluidgenie.cli.eval_codebook \
