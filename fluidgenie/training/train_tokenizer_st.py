@@ -78,6 +78,7 @@ def main():
         num_heads=args.num_heads,
         dropout=args.dropout,
         codebook_dropout=args.codebook_dropout,
+        bg_thresh=args.bg_thresh,
     )
 
     st_tokenizer_params = st_tokenizer_model.init(

@@ -103,6 +103,7 @@ def main():
         num_heads=args.tok_num_heads,
         dropout=args.tok_dropout,
         codebook_dropout=args.tok_codebook_dropout,
+        bg_thresh=args.bg_thresh,
     )
     st_tokenizer_init = st_tokenizer_model.init(
         rng, {"videos": jnp.zeros((1, 1, H, W, C), dtype=jnp.float32)}, training=False

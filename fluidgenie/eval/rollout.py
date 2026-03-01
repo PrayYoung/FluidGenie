@@ -13,6 +13,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from flax.core import freeze, unfreeze
 
+from fluidgenie.data.preprocess import patchify
+
 try:
     import imageio.v2 as imageio
 except Exception:  # pragma: no cover
@@ -316,6 +318,7 @@ def st_maskgit_rollout_tokens(
     mask_steps: int,
     rng_key: jax.Array,
     latent_actions: Float[Array, "b t m d"] | None = None,
+    bg_mask: Bool[Array, "b h w"] | None = None,
 ) -> Int[Array, "b h w"]:
     """
     tok_ctx: [B, context, h, w]
@@ -358,6 +361,9 @@ def st_maskgit_rollout_tokens(
         tok_next_flat = jnp.where(is_unmasked, pred, tok_next.reshape(b, n))
         tok_next = tok_next_flat.reshape(b, h, w)
         mask = (~is_unmasked).reshape(b, h, w)
+        if bg_mask is not None:
+            tok_next = jnp.where(bg_mask, 0, tok_next)
+            mask = jnp.where(bg_mask, False, mask)
         return (tok_next, mask, rng), None
 
     (tok_next, _, _), _ = jax.lax.scan(step_fn, (tok_next0, mask0, rng_key), jnp.arange(mask_steps))
@@ -389,6 +395,7 @@ def run_rollout_generator(
     num_heads_tok: int = 8,
     tokenizer_dropout: float = 0.0,
     codebook_dropout: float = 0.0,
+    bg_thresh: float = 0.0,
     use_lam: bool = False,
     lam_ckpt: str = "",
     lam_model_dim: int = 256,
@@ -423,6 +430,7 @@ def run_rollout_generator(
         num_heads=num_heads_tok,
         dropout=tokenizer_dropout,
         codebook_dropout=codebook_dropout,
+        bg_thresh=bg_thresh,
     )
     if tokenizer_arch == "st":
         st_tokenizer_model = base_or_st_tokenizer_model
@@ -515,6 +523,19 @@ def run_rollout_generator(
         mean,
         std,
     )
+    bg_mask = None
+    if tokenizer_arch == "st" and bg_thresh > 0:
+        x_last = ctx_frames[-1][None, ...]
+        x_last = _norm(x_last, mean, std, min_v, denom)
+        # per-pixel vacuum: all channels near -1
+        bg_px = jnp.all(jnp.abs(x_last + 1.0) < bg_thresh, axis=-1)  # [1,H,W]
+        h_pad = -H % patch_size
+        w_pad = -W % patch_size
+        hn = (H + h_pad) // patch_size
+        wn = (W + w_pad) // patch_size
+        bg_px = bg_px[:, None, :, :, None].astype(jnp.float32)
+        bg_patches = patchify(bg_px, patch_size)  # [1,1,N,P]
+        bg_mask = jnp.all(bg_patches > 0.5, axis=-1).reshape(1, 1, hn, wn)[:, 0]
 
     lam_model = None
     lam_params = None
@@ -574,6 +595,7 @@ def run_rollout_generator(
                 mask_steps=mask_steps,
                 rng_key=rng,
                 latent_actions=latent_actions,
+                bg_mask=bg_mask,
             )
         else:
             if model_type == "maskgit":
@@ -667,6 +689,7 @@ def run_rollout(
     num_heads_tok: Optional[int] = None,
     tokenizer_dropout: float = 0.0,
     codebook_dropout: float = 0.0,
+    bg_thresh: float = 0.0,
     use_lam: bool = False,
     lam_ckpt: str = "",
     lam_model_dim: int = 256,
@@ -709,6 +732,7 @@ def run_rollout(
         num_heads_tok=num_heads_tok,
         tokenizer_dropout=tokenizer_dropout,
         codebook_dropout=codebook_dropout,
+        bg_thresh=bg_thresh,
         use_lam=use_lam,
         lam_ckpt=lam_ckpt,
         lam_model_dim=lam_model_dim,

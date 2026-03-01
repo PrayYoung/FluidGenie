@@ -42,6 +42,7 @@ def load_tokenizer_params(
     num_heads: int = 8,
     dropout: float = 0.0,
     codebook_dropout: float = 0.0,
+    bg_thresh: float = 0.0,
 ) -> Tuple[Any, dict]:
     rng = jax.random.PRNGKey(seed)
     if arch == "st":
@@ -55,6 +56,7 @@ def load_tokenizer_params(
             num_heads=num_heads,
             dropout=dropout,
             codebook_dropout=codebook_dropout,
+            bg_thresh=bg_thresh,
         )
         params_init = model.init(
             rng,

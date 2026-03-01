@@ -111,6 +111,7 @@ uv run python -m fluidgenie.training.train_tokenizer_st \
   --seq-len 4 \
   --stats data/stats/ns2d_stats.npz
 ```
+Optional background clamp: `--bg-thresh 1e-3`
 
 ### Pipeline B1: ST Dynamics (no LAM)
 Use a dedicated output folder for non‑LAM dynamics.
@@ -206,6 +207,7 @@ uv run python -m fluidgenie.cli.demo \
   --tokenizer-arch st \
   --stats data/stats/ns2d_stats.npz
 ```
+Optional background clamp: `--bg-thresh 1e-3`
 
 ### Demo B2: ST Tokenizer + ST‑MaskGIT + LAM
 ```bash

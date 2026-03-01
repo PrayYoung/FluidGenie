@@ -37,6 +37,7 @@ def save_tokenizer_recon(
     num_heads: int = 8,
     dropout: float = 0.0,
     codebook_dropout: float = 0.0,
+    bg_thresh: float = 0.0,
 ) -> None:
     out = ensure_dir(Path(out_dir))
 
@@ -58,6 +59,7 @@ def save_tokenizer_recon(
         num_heads=num_heads,
         dropout=dropout,
         codebook_dropout=codebook_dropout,
+        bg_thresh=bg_thresh,
     )
     if tokenizer_arch == "st":
         st_tokenizer_model = base_or_st_tokenizer_model

@@ -22,6 +22,7 @@ class TokenizerSTVQVAE(nn.Module):
     num_heads: int
     dropout: float
     codebook_dropout: float
+    bg_thresh: float = 0.0
 
     def setup(self):
         self.encoder = STTransformer(
@@ -79,7 +80,16 @@ class TokenizerSTVQVAE(nn.Module):
         w_pad = -w % self.patch_size
         hn = (h + h_pad) // self.patch_size
         wn = (w + w_pad) // self.patch_size
-        return tokens.reshape(b, 1, hn, wn)[:, 0]
+        tok_grid = tokens.reshape(b, 1, hn, wn)[:, 0]
+        if self.bg_thresh > 0:
+            # For our data, background is near the min value (≈ -1 after min-max).
+            # We force pure-vacuum pixels to token 0 to stabilize background dynamics.
+            bg_px = jnp.all(jnp.abs(x + 1.0) < self.bg_thresh, axis=-1)  # [B,H,W]
+            bg_px = bg_px[:, None, :, :, None].astype(jnp.float32)
+            bg_patches = patchify(bg_px, self.patch_size)  # [B,1,N,P]
+            bg_patch = jnp.all(bg_patches > 0.5, axis=-1).reshape(b, 1, hn, wn)[:, 0]
+            tok_grid = jnp.where(bg_patch, 0, tok_grid)
+        return tok_grid
 
     def decode_tokens(
         self, indices: Int[Array, "b h w"], video_hw: Tuple[int, int]

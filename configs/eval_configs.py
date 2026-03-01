@@ -15,6 +15,7 @@ _TOKENIZER_BLOCKS_DEFAULT = TokenizerConfig.__dataclass_fields__["num_blocks"].d
 _TOKENIZER_HEADS_DEFAULT = TokenizerConfig.__dataclass_fields__["num_heads"].default
 _TOKENIZER_DROPOUT_DEFAULT = TokenizerConfig.__dataclass_fields__["dropout"].default
 _TOKENIZER_CODEBOOK_DROPOUT_DEFAULT = TokenizerConfig.__dataclass_fields__["codebook_dropout"].default
+_TOKENIZER_BG_THRESH_DEFAULT = TokenizerConfig.__dataclass_fields__["bg_thresh"].default
 
 _DYN_MODEL_DEFAULT = DynamicsConfig.__dataclass_fields__["model"].default
 _DYN_D_MODEL_DEFAULT = DynamicsConfig.__dataclass_fields__["d_model"].default
@@ -47,6 +48,7 @@ class DemoArgs:
     num_heads: int = _TOKENIZER_HEADS_DEFAULT
     dropout: float = _TOKENIZER_DROPOUT_DEFAULT
     codebook_dropout: float = _TOKENIZER_CODEBOOK_DROPOUT_DEFAULT
+    bg_thresh: float = _TOKENIZER_BG_THRESH_DEFAULT
 
     vq_ckpt: str = ""
     codebook: int = _TOKENIZER_CODEBOOK_DEFAULT
