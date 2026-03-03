@@ -164,11 +164,11 @@ def encode_context_tokens(
     ctx_frames: Float[Array, "t h w c"],
     mean,
     std,
+    min_v=None,
+    denom=None,
 ) -> Int[Array, "1 t h2 w2"]:
     # ctx_frames: [context,H,W,C] -> [1,context,h,w]
-    x = ctx_frames.astype(np.float32)
-    if mean is not None:
-        x = (x - mean) / (std + 1e-6)
+    x = _norm(ctx_frames.astype(np.float32), mean, std, min_v, denom)
     x = jnp.array(x, dtype=jnp.float32)
     # vmap over time dimension
     tok = jax.vmap(lambda f: vq_encode_tokens(tokenizer_params, f[None, ...])[0])(x)
@@ -522,6 +522,8 @@ def run_rollout_generator(
         ctx_frames,
         mean,
         std,
+        min_v,
+        denom,
     )
     bg_mask = None
     if tokenizer_arch == "st" and bg_thresh > 0:
