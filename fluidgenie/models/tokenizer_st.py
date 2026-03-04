@@ -3,9 +3,9 @@ from __future__ import annotations
 from typing import Any, Dict, Tuple
 
 from jaxtyping import Array, Float, Int
+import jax.numpy as jnp
 
 import flax.linen as nn
-
 from fluidgenie.data.preprocess import patchify, unpatchify
 from fluidgenie.models.st_transformer import STTransformer, VectorQuantizer
 
@@ -84,7 +84,7 @@ class TokenizerSTVQVAE(nn.Module):
         if self.bg_thresh > 0:
             # For our data, background is near the min value (≈ -1 after min-max).
             # We force pure-vacuum pixels to token 0 to stabilize background dynamics.
-            bg_px = jnp.all(jnp.abs(x + 1.0) < self.bg_thresh, axis=-1)  # [B,H,W]
+            bg_px = jnp.all(jnp.abs(x[:, 0] + 1.0) < self.bg_thresh, axis=-1)  # [B,H,W]
             bg_px = bg_px[:, None, :, :, None].astype(jnp.float32)
             bg_patches = patchify(bg_px, self.patch_size)  # [B,1,N,P]
             bg_patch = jnp.all(bg_patches > 0.5, axis=-1).reshape(b, 1, hn, wn)[:, 0]
@@ -98,4 +98,11 @@ class TokenizerSTVQVAE(nn.Module):
         b, h, w = indices.shape
         z = self.vq.get_codes(indices.reshape(b, 1, h * w))
         recon = self.decoder(z, training=False)
+        img = unpatchify(recon, self.patch_size, *video_hw)
+        if self.bg_thresh > 0:
+            bg_mask_tok = (indices == 0)
+            bg_mask_px = jnp.repeat(jnp.repeat(bg_mask_tok, self.patch_size, axis=1), self.patch_size, axis=2)
+            img = jnp.where(bg_mask_px[..., None], -1.0, img)
+        if img.ndim == 5:
+            return img[:, 0]
         return unpatchify(recon, self.patch_size, *video_hw)

@@ -7,6 +7,7 @@ DEFAULT_CODEBOOK = 512
 DEFAULT_EMBED = 64
 DEFAULT_HIDDEN = 128
 DEFAULT_PATCH_SIZE = 4
+DEFAULT_BG_THRESH = 1e-3
 
 
 @dataclass
@@ -35,7 +36,7 @@ class TokenizerConfig:
     num_heads: int = 8
     dropout: float = 0.0
     codebook_dropout: float = 0.0
-    bg_thresh: float = 1e-3
+    bg_thresh: float = DEFAULT_BG_THRESH
     seq_len: int = 2
     grain_workers: int = 8
 
@@ -91,6 +92,7 @@ class DynamicsConfig:
     tok_num_heads: int = 8
     tok_dropout: float = 0.0
     tok_codebook_dropout: float = 0.0
+    bg_thresh: float = DEFAULT_BG_THRESH
 
 
 @dataclass

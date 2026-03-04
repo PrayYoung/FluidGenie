@@ -74,7 +74,7 @@ def main() -> None:
     if not args.dyn_ckpt:
         raise ValueError("--dyn_ckpt is required for --mode rollout")
 
-        run_rollout(
+    run_rollout(
         npz_path=args.npz,
         vq_ckpt=args.vq_ckpt,
         dyn_ckpt=args.dyn_ckpt,
@@ -99,12 +99,12 @@ def main() -> None:
         model_dim=args.model_dim,
         num_blocks=args.num_blocks,
         num_heads=args.num_heads,
-            tokenizer_dropout=args.dropout,
-            codebook_dropout=args.codebook_dropout,
-            bg_thresh=args.bg_thresh,
-            bos_token_id=args.bos_token_id,
-            rng_seed=args.rng_seed,
-            use_lam=args.use_lam,
+        tokenizer_dropout=args.dropout,
+        codebook_dropout=args.codebook_dropout,
+        bg_thresh=args.bg_thresh,
+        bos_token_id=args.bos_token_id,
+        rng_seed=args.rng_seed,
+        use_lam=args.use_lam,
         lam_ckpt=args.lam_ckpt,
         lam_model_dim=args.lam_model_dim,
         lam_latent_dim=args.lam_latent_dim,

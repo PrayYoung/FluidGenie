@@ -175,6 +175,10 @@ def dynamics_st_loss(
     dropout_key: jax.Array,
     latent_actions: Float[Array, "b t m d"] | None = None,
 ) -> Tuple[Float[Array, ""], Dict[str, Float[Array, ""]]]:
+    """
+    Mask only the last frame (t = T-1). Loss is computed ONLY on masked tokens
+    of the last frame to match frame-by-frame rollout.
+    """
     batch = {"video_tokens": tok_seq, "mask_rng": mask_key}
     if latent_actions is not None:
         batch["latent_actions"] = latent_actions
@@ -184,14 +188,23 @@ def dynamics_st_loss(
         training=True,
         rngs={"dropout": dropout_key},
     )
-    mask = outputs["mask"].astype(jnp.float32)
+    mask = outputs["mask"]
     logits = outputs["token_logits"]
 
     b, t, n, v = logits.shape
     tok_seq_flat = tok_seq.reshape(b, t, n)
+    assert mask.shape == tok_seq_flat.shape, "mask shape must match token grid"
+
+    # Sanity: earlier frames should be unmasked; last frame has masks (unless ratio==0).
+    prev_ok = jnp.all(~mask[:, :-1])
+    last_any = jnp.any(mask[:, -1])
 
     ce = optax.softmax_cross_entropy_with_integer_labels(logits, tok_seq_flat)
-    denom = jnp.maximum(mask.sum(), 1.0)
-    loss = (mask * ce).sum() / denom
-    acc = (mask * (logits.argmax(-1) == tok_seq_flat)).sum() / denom
+    last_mask = mask[:, -1].astype(ce.dtype)
+    # If sanity checks fail, emit NaN to surface the issue.
+    sanity_ok = jnp.logical_and(prev_ok, jnp.logical_or(last_any, last_mask.sum() == 0))
+    last_mask = jnp.where(sanity_ok, last_mask, jnp.nan)
+    denom = jnp.maximum(last_mask.sum(), 1.0)
+    loss = (last_mask * ce[:, -1]).sum() / denom
+    acc = (last_mask * (logits[:, -1].argmax(-1) == tok_seq_flat[:, -1])).sum() / denom
     return loss, {"loss": loss, "masked_acc": acc}

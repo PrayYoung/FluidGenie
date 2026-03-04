@@ -537,7 +537,7 @@ def run_rollout_generator(
         wn = (W + w_pad) // patch_size
         bg_px = bg_px[:, None, :, :, None].astype(jnp.float32)
         bg_patches = patchify(bg_px, patch_size)  # [1,1,N,P]
-        bg_mask = jnp.all(bg_patches > 0.5, axis=-1).reshape(1, 1, hn, wn)[:, 0]
+        bg_mask = jnp.all(bg_patches > 0.5, axis=-1).reshape(1, hn, wn)
 
     lam_model = None
     lam_params = None

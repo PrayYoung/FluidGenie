@@ -63,7 +63,9 @@ class DynamicsSTMaskGIT(nn.Module):
                 mask_prob = jax.random.uniform(
                     rng1, minval=self.mask_ratio_min, maxval=self.mask_ratio_max
                 )
-            mask = jax.random.bernoulli(rng2, mask_prob, vid_embed.shape[:-1])
+            # Only mask the last frame (t = T-1) to match frame-by-frame rollout.
+            mask_last = jax.random.bernoulli(rng2, mask_prob, vid_embed[:, -1].shape)
+            mask = jnp.zeros(vid_embed.shape[:-1], dtype=jnp.bool_).at[:, -1].set(mask_last)
         if mask is not None:
             mask = mask.at[:, 0].set(False)
             vid_embed = jnp.where(mask[..., None], self.mask_token, vid_embed)
