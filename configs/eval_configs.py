@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from configs.model_configs import DynamicsConfig, TokenizerConfig
 
@@ -33,15 +33,14 @@ _DYN_LAM_NUM_BLOCKS_DEFAULT = DynamicsConfig.__dataclass_fields__["lam_num_block
 _DYN_LAM_NUM_HEADS_DEFAULT = DynamicsConfig.__dataclass_fields__["lam_num_heads"].default
 _DYN_LAM_DROPOUT_DEFAULT = DynamicsConfig.__dataclass_fields__["lam_dropout"].default
 _DYN_LAM_CODEBOOK_DROPOUT_DEFAULT = DynamicsConfig.__dataclass_fields__["lam_codebook_dropout"].default
+_DYN_BOS_DEFAULT = DynamicsConfig.__dataclass_fields__["bos_token_id"].default
+_DYN_RNG_DEFAULT = DynamicsConfig.__dataclass_fields__["rng_seed"].default
 
 
 @dataclass
-class DemoArgs:
-    mode: str  # "tokenizer" | "rollout"
-    npz: str
-    out: str
+class TokenizerArgs:
     stats: str = _TOKENIZER_STATS_DEFAULT
-    tokenizer_arch: str = _TOKENIZER_ARCH_DEFAULT
+    arch: str = _TOKENIZER_ARCH_DEFAULT
     patch_size: int = _TOKENIZER_PATCH_DEFAULT
     model_dim: int = _TOKENIZER_MODEL_DIM_DEFAULT
     num_blocks: int = _TOKENIZER_BLOCKS_DEFAULT
@@ -49,32 +48,14 @@ class DemoArgs:
     dropout: float = _TOKENIZER_DROPOUT_DEFAULT
     codebook_dropout: float = _TOKENIZER_CODEBOOK_DROPOUT_DEFAULT
     bg_thresh: float = _TOKENIZER_BG_THRESH_DEFAULT
-
     vq_ckpt: str = ""
     codebook: int = _TOKENIZER_CODEBOOK_DEFAULT
     embed: int = _TOKENIZER_EMBED_DEFAULT
     hidden: int = _TOKENIZER_HIDDEN_DEFAULT
 
-    frame: int = 0
-    save_gif: bool = False
-    view: str = "density"  # density | vorticity | speed | channel0
 
-    dyn_ckpt: str = ""
-    start: int = 0
-    horizon: int = 60
-    context: int = 2
-
-    model: str = _DYN_MODEL_DEFAULT  # transformer | maskgit
-    d_model: int = _DYN_D_MODEL_DEFAULT
-    n_heads: int = _DYN_HEADS_DEFAULT
-    n_layers: int = _DYN_LAYERS_DEFAULT
-    dropout: float = _DYN_DROPOUT_DEFAULT
-    mask_steps: int = _DYN_MASK_STEPS_DEFAULT
-    kv_cache: bool = True
-    rollout_view: str = "density"
-    bos_token_id: int = 0
-    rng_seed: int = 0
-
+@dataclass
+class LAMArgs:
     use_lam: bool = _DYN_USE_LAM_DEFAULT
     lam_ckpt: str = _DYN_LAM_CKPT_DEFAULT
     lam_model_dim: int = _DYN_LAM_MODEL_DIM_DEFAULT
@@ -85,6 +66,37 @@ class DemoArgs:
     lam_num_heads: int = _DYN_LAM_NUM_HEADS_DEFAULT
     lam_dropout: float = _DYN_LAM_DROPOUT_DEFAULT
     lam_codebook_dropout: float = _DYN_LAM_CODEBOOK_DROPOUT_DEFAULT
+
+
+@dataclass
+class RolloutArgs:
+    dyn_ckpt: str = ""
+    start: int = 0
+    horizon: int = 60
+    context: int = 2
+    model: str = _DYN_MODEL_DEFAULT  # transformer | maskgit | st_maskgit
+    d_model: int = _DYN_D_MODEL_DEFAULT
+    n_heads: int = _DYN_HEADS_DEFAULT
+    n_layers: int = _DYN_LAYERS_DEFAULT
+    dropout: float = _DYN_DROPOUT_DEFAULT
+    mask_steps: int = _DYN_MASK_STEPS_DEFAULT
+    kv_cache: bool = True
+    view: str = "density"
+    bos_token_id: int = _DYN_BOS_DEFAULT
+    rng_seed: int = _DYN_RNG_DEFAULT
+    lam: LAMArgs = field(default_factory=LAMArgs)
+
+
+@dataclass
+class DemoArgs:
+    mode: str  # "tokenizer" | "rollout"
+    npz: str
+    out: str
+    frame: int = 0
+    save_gif: bool = False
+    view: str = "density"  # density | vorticity | speed | channel0
+    tokenizer: TokenizerArgs = field(default_factory=TokenizerArgs)
+    rollout: RolloutArgs = field(default_factory=RolloutArgs)
 
 
 @dataclass
@@ -105,3 +117,90 @@ class EvalCodebookArgs:
     num_heads: int = _TOKENIZER_HEADS_DEFAULT
     dropout: float = _TOKENIZER_DROPOUT_DEFAULT
     codebook_dropout: float = _TOKENIZER_CODEBOOK_DROPOUT_DEFAULT
+
+
+@dataclass
+class RolloutConfig:
+    npz_path: str
+    vq_ckpt: str
+    dyn_ckpt: str
+    out_dir: str
+    start: int = 0
+    horizon: int = 60
+    context: int = 2
+    codebook_size: int = _TOKENIZER_CODEBOOK_DEFAULT
+    embed_dim: int = _TOKENIZER_EMBED_DEFAULT
+    hidden: int = _TOKENIZER_HIDDEN_DEFAULT
+    d_model: int = _DYN_D_MODEL_DEFAULT
+    n_heads: int = _DYN_HEADS_DEFAULT
+    n_layers: int = _DYN_LAYERS_DEFAULT
+    dropout: float = _DYN_DROPOUT_DEFAULT
+    model_type: str = _DYN_MODEL_DEFAULT
+    use_kv_cache: bool = True
+    mask_steps: int = _DYN_MASK_STEPS_DEFAULT
+    view: str = "density"
+    stats_path: str = _TOKENIZER_STATS_DEFAULT
+    tokenizer_arch: str = _TOKENIZER_ARCH_DEFAULT
+    patch_size: int = _TOKENIZER_PATCH_DEFAULT
+    model_dim: int = _TOKENIZER_MODEL_DIM_DEFAULT
+    num_blocks: int = _TOKENIZER_BLOCKS_DEFAULT
+    num_heads_tok: int = _TOKENIZER_HEADS_DEFAULT
+    tokenizer_dropout: float = _TOKENIZER_DROPOUT_DEFAULT
+    codebook_dropout: float = _TOKENIZER_CODEBOOK_DROPOUT_DEFAULT
+    bg_thresh: float = _TOKENIZER_BG_THRESH_DEFAULT
+    use_lam: bool = _DYN_USE_LAM_DEFAULT
+    lam_ckpt: str = _DYN_LAM_CKPT_DEFAULT
+    lam_model_dim: int = _DYN_LAM_MODEL_DIM_DEFAULT
+    lam_latent_dim: int = _DYN_LAM_LATENT_DIM_DEFAULT
+    lam_num_latents: int = _DYN_LAM_NUM_LATENTS_DEFAULT
+    lam_patch_size: int = _DYN_LAM_PATCH_SIZE_DEFAULT
+    lam_num_blocks: int = _DYN_LAM_NUM_BLOCKS_DEFAULT
+    lam_num_heads: int = _DYN_LAM_NUM_HEADS_DEFAULT
+    lam_dropout: float = _DYN_LAM_DROPOUT_DEFAULT
+    lam_codebook_dropout: float = _DYN_LAM_CODEBOOK_DROPOUT_DEFAULT
+    bos_token_id: int = _DYN_BOS_DEFAULT
+    rng_seed: int = _DYN_RNG_DEFAULT
+
+
+def rollout_config_from_demo(args: DemoArgs) -> RolloutConfig:
+    return RolloutConfig(
+        npz_path=args.npz,
+        vq_ckpt=args.tokenizer.vq_ckpt,
+        dyn_ckpt=args.rollout.dyn_ckpt,
+        out_dir=args.out,
+        start=args.rollout.start,
+        horizon=args.rollout.horizon,
+        context=args.rollout.context,
+        codebook_size=args.tokenizer.codebook,
+        embed_dim=args.tokenizer.embed,
+        hidden=args.tokenizer.hidden,
+        d_model=args.rollout.d_model,
+        n_heads=args.rollout.n_heads,
+        n_layers=args.rollout.n_layers,
+        dropout=args.rollout.dropout,
+        model_type=args.rollout.model,
+        use_kv_cache=args.rollout.kv_cache,
+        mask_steps=args.rollout.mask_steps,
+        view=args.rollout.view,
+        stats_path=args.tokenizer.stats,
+        tokenizer_arch=args.tokenizer.arch,
+        patch_size=args.tokenizer.patch_size,
+        model_dim=args.tokenizer.model_dim,
+        num_blocks=args.tokenizer.num_blocks,
+        num_heads_tok=args.tokenizer.num_heads,
+        tokenizer_dropout=args.tokenizer.dropout,
+        codebook_dropout=args.tokenizer.codebook_dropout,
+        bg_thresh=args.tokenizer.bg_thresh,
+        bos_token_id=args.rollout.bos_token_id,
+        rng_seed=args.rollout.rng_seed,
+        use_lam=args.rollout.lam.use_lam,
+        lam_ckpt=args.rollout.lam.lam_ckpt,
+        lam_model_dim=args.rollout.lam.lam_model_dim,
+        lam_latent_dim=args.rollout.lam.lam_latent_dim,
+        lam_num_latents=args.rollout.lam.lam_num_latents,
+        lam_patch_size=args.rollout.lam.lam_patch_size,
+        lam_num_blocks=args.rollout.lam.lam_num_blocks,
+        lam_num_heads=args.rollout.lam.lam_num_heads,
+        lam_dropout=args.rollout.lam.lam_dropout,
+        lam_codebook_dropout=args.rollout.lam.lam_codebook_dropout,
+    )
