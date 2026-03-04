@@ -22,6 +22,8 @@ from jaxtyping import Array, Float
 import tyro
 
 from configs.model_configs import LAMConfig
+from configs.config_io import save_config_json
+from dataclasses import asdict
 from fluidgenie.data.dataset_npz import NPZSequenceDataset, create_grain_dataloader
 from fluidgenie.training.logging_utils import TrainingLogger
 from fluidgenie.training.losses import lam_loss
@@ -106,6 +108,7 @@ def main():
 
     save_params(out, "final", state.params)
     save_params(out, "latest", state.params)
+    save_config_json(out, {"kind": "lam", "config": asdict(args)})
     logger.close()
     print("Saved LAM to", out)
 

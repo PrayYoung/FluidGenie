@@ -34,7 +34,12 @@ import tyro
 
 from fluidgenie.eval.viz import save_tokenizer_recon
 from fluidgenie.eval.rollout_runner import run_rollout
-from configs.eval_configs import DemoArgs, rollout_config_from_demo
+from configs.eval_configs import (
+    DemoArgs,
+    rollout_config_from_demo,
+    tokenizer_recon_kwargs_from_demo,
+    apply_ckpt_config_to_demo,
+)
 
 
 # ----------------------------
@@ -43,30 +48,12 @@ from configs.eval_configs import DemoArgs, rollout_config_from_demo
 
 def main() -> None:
     args = tyro.cli(DemoArgs)
+    args = apply_ckpt_config_to_demo(args)
 
     if args.mode == "tokenizer":
         if not args.tokenizer.vq_ckpt:
             raise ValueError("--vq_ckpt is required for --mode tokenizer")
-        save_tokenizer_recon(
-            npz_path=args.npz,
-            vq_ckpt=args.tokenizer.vq_ckpt,
-            out_dir=args.out,
-            frame=args.frame,
-            codebook_size=args.tokenizer.codebook,
-            embed_dim=args.tokenizer.embed,
-            hidden=args.tokenizer.hidden,
-            stats_path=args.tokenizer.stats if args.tokenizer.stats else None,
-            save_gif=args.save_gif,
-            view=args.view,
-            tokenizer_arch=args.tokenizer.arch,
-            patch_size=args.tokenizer.patch_size,
-            model_dim=args.tokenizer.model_dim,
-            num_blocks=args.tokenizer.num_blocks,
-            num_heads=args.tokenizer.num_heads,
-            dropout=args.tokenizer.dropout,
-            codebook_dropout=args.tokenizer.codebook_dropout,
-            bg_thresh=args.tokenizer.bg_thresh,
-        )
+        save_tokenizer_recon(**tokenizer_recon_kwargs_from_demo(args))
         return
 
     if args.mode != "rollout":

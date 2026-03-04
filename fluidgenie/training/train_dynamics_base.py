@@ -22,6 +22,8 @@ Run (example):
 from __future__ import annotations
 
 from configs.model_configs import DynamicsConfig
+from configs.config_io import save_config_json
+from dataclasses import asdict
 from pathlib import Path
 from typing import Tuple
 
@@ -267,6 +269,7 @@ def main():
 
     save_params(out, "final", state.params)
     save_params(out, "latest", state.params)
+    save_config_json(out, {"kind": "dynamics_base", "config": asdict(args)})
     logger.close()
     print("Saved dynamics to", out)
     print(f"Token grid: {h_tok}x{w_tok}, L_in={L_in}, L_out={L_out}, max_len={max_len}")

@@ -58,13 +58,15 @@ uv run python -m fluidgenie.training.train_dynamics_base \
   --stats data/stats/ns2d_stats.npz
 
 # 4) Rollout
+Note: training writes a `config.json` next to each checkpoint. `demo`/`rollout` will auto-load it.
+CLI flags still override the config values when provided.
 uv run python -m fluidgenie.cli.demo \
   --mode rollout \
   --npz data/raw/ns2d/episode_000000.npy \
-  --vq-ckpt runs/tokenizer/base/latest \
-  --dyn-ckpt runs/dynamics/base/latest \
+  --tokenizer.vq_ckpt runs/tokenizer/base/latest \
+  --rollout.dyn_ckpt runs/dynamics/base/latest \
   --out demo/rollout/base \
-  --stats data/stats/ns2d_stats.npz
+  --tokenizer.stats data/stats/ns2d_stats.npz
 ```
 
 ---
@@ -155,10 +157,10 @@ uv run python -m fluidgenie.training.train_dynamics_st \
 uv run python -m fluidgenie.cli.demo \
   --mode tokenizer \
   --npz data/raw/ns2d/episode_000000.npy \
-  --vq-ckpt runs/tokenizer/base/latest \
+  --tokenizer.vq_ckpt runs/tokenizer/base/latest \
   --out demo/tokenizer/base \
   --view density \
-  --stats data/stats/ns2d_stats.npz
+  --tokenizer.stats data/stats/ns2d_stats.npz
 ```
 
 ```bash
@@ -166,11 +168,11 @@ uv run python -m fluidgenie.cli.demo \
 uv run python -m fluidgenie.cli.demo \
   --mode rollout \
   --npz data/raw/ns2d/episode_000000.npy \
-  --vq-ckpt runs/tokenizer/base/latest \
-  --dyn-ckpt runs/dynamics/base/latest \
+  --tokenizer.vq_ckpt runs/tokenizer/base/latest \
+  --rollout.dyn_ckpt runs/dynamics/base/latest \
   --out demo/rollout/base_ar \
   --model transformer \
-  --stats data/stats/ns2d_stats.npz
+  --tokenizer.stats data/stats/ns2d_stats.npz
 ```
 
 ```bash
@@ -178,11 +180,11 @@ uv run python -m fluidgenie.cli.demo \
 uv run python -m fluidgenie.cli.demo \
   --mode rollout \
   --npz data/raw/ns2d/episode_000000.npy \
-  --vq-ckpt runs/tokenizer/base/latest \
-  --dyn-ckpt runs/dynamics/base_maskgit/latest \
+  --tokenizer.vq_ckpt runs/tokenizer/base/latest \
+  --rollout.dyn_ckpt runs/dynamics/base_maskgit/latest \
   --out demo/rollout/base_maskgit \
   --model maskgit \
-  --stats data/stats/ns2d_stats.npz
+  --tokenizer.stats data/stats/ns2d_stats.npz
 ```
 
 ### Demo B1: ST Tokenizer + ST‑MaskGIT (no LAM)
@@ -190,22 +192,22 @@ uv run python -m fluidgenie.cli.demo \
 uv run python -m fluidgenie.cli.demo \
   --mode tokenizer \
   --npz data/raw/ns2d/episode_000000.npy \
-  --vq-ckpt runs/tokenizer/st/latest \
+  --tokenizer.vq_ckpt runs/tokenizer/st/latest \
   --out demo/tokenizer/st \
   --tokenizer-arch st \
-  --stats data/stats/ns2d_stats.npz
+  --tokenizer.stats data/stats/ns2d_stats.npz
 ```
 
 ```bash
 uv run python -m fluidgenie.cli.demo \
   --mode rollout \
   --npz data/raw/ns2d/episode_000000.npy \
-  --vq-ckpt runs/tokenizer/st/latest \
-  --dyn-ckpt runs/dynamics/st_nolam/latest \
+  --tokenizer.vq_ckpt runs/tokenizer/st/latest \
+  --rollout.dyn_ckpt runs/dynamics/st_nolam/latest \
   --out demo/rollout/st_nolam \
   --model st_maskgit \
   --tokenizer-arch st \
-  --stats data/stats/ns2d_stats.npz
+  --tokenizer.stats data/stats/ns2d_stats.npz
 ```
 Optional background clamp: `--bg-thresh 1e-3`
 
@@ -214,14 +216,14 @@ Optional background clamp: `--bg-thresh 1e-3`
 uv run python -m fluidgenie.cli.demo \
   --mode rollout \
   --npz data/raw/ns2d/episode_000000.npy \
-  --vq-ckpt runs/tokenizer/st/latest \
-  --dyn-ckpt runs/dynamics/st_lam/latest \
+  --tokenizer.vq_ckpt runs/tokenizer/st/latest \
+  --rollout.dyn_ckpt runs/dynamics/st_lam/latest \
   --out demo/rollout/st_lam \
   --model st_maskgit \
   --tokenizer-arch st \
   --use-lam \
   --lam-ckpt runs/lam/latest \
-  --stats data/stats/ns2d_stats.npz
+  --tokenizer.stats data/stats/ns2d_stats.npz
 ```
 ### Codebook Usage (collapse check)
 ```bash

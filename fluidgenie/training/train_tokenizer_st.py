@@ -21,6 +21,8 @@ from jaxtyping import Array, Float
 import tyro
 
 from configs.model_configs import TokenizerConfig
+from configs.config_io import save_config_json
+from dataclasses import asdict
 from fluidgenie.data.dataset_npz import create_grain_dataloader
 from fluidgenie.training.logging_utils import TrainingLogger
 from fluidgenie.training.losses import tokenizer_st_loss
@@ -111,6 +113,7 @@ def main():
 
     save_params(out, "final", state.params)
     save_params(out, "latest", state.params)
+    save_config_json(out, {"kind": "tokenizer_st", "config": asdict(args)})
     logger.close()
     print("Saved ST tokenizer to", out)
 

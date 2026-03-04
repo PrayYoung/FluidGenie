@@ -14,6 +14,8 @@ Run:
 from __future__ import annotations
 
 from configs.model_configs import TokenizerConfig
+from configs.config_io import save_config_json
+from dataclasses import asdict
 from pathlib import Path
 import numpy as np
 import jax
@@ -141,6 +143,7 @@ def main():
 
     # Save final
     save_params(out, "final", state.params)
+    save_config_json(out, {"kind": "tokenizer_base", "config": asdict(args)})
     logger.close()
     print("Saved tokenizer to", out)
 

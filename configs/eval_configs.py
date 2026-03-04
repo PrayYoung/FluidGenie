@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict, replace
 
 from configs.model_configs import DynamicsConfig, TokenizerConfig
 
@@ -204,3 +204,145 @@ def rollout_config_from_demo(args: DemoArgs) -> RolloutConfig:
         lam_dropout=args.rollout.lam.lam_dropout,
         lam_codebook_dropout=args.rollout.lam.lam_codebook_dropout,
     )
+
+
+def tokenizer_recon_kwargs_from_demo(args: DemoArgs) -> dict:
+    return {
+        "npz_path": args.npz,
+        "vq_ckpt": args.tokenizer.vq_ckpt,
+        "out_dir": args.out,
+        "frame": args.frame,
+        "codebook_size": args.tokenizer.codebook,
+        "embed_dim": args.tokenizer.embed,
+        "hidden": args.tokenizer.hidden,
+        "stats_path": args.tokenizer.stats if args.tokenizer.stats else None,
+        "save_gif": args.save_gif,
+        "view": args.view,
+        "tokenizer_arch": args.tokenizer.arch,
+        "patch_size": args.tokenizer.patch_size,
+        "model_dim": args.tokenizer.model_dim,
+        "num_blocks": args.tokenizer.num_blocks,
+        "num_heads": args.tokenizer.num_heads,
+        "dropout": args.tokenizer.dropout,
+        "codebook_dropout": args.tokenizer.codebook_dropout,
+        "bg_thresh": args.tokenizer.bg_thresh,
+    }
+
+
+def apply_ckpt_config_to_demo(args: DemoArgs) -> DemoArgs:
+    """
+    Fill DemoArgs from config.json saved next to ckpts.
+    Priority: CLI values > ckpt config > defaults.
+    """
+    defaults = DemoArgs(mode=args.mode, npz=args.npz, out=args.out)
+
+    # tokenizer config
+    tok_cfg = load_config_json(args.tokenizer.vq_ckpt)
+    if tok_cfg and isinstance(tok_cfg.get("config"), dict):
+        tok_defaults = defaults.tokenizer
+        tok = merge_dataclass_from_config(args.tokenizer, tok_cfg["config"], tok_defaults)
+    else:
+        tok = args.tokenizer
+
+    # dynamics config
+    dyn_cfg = load_config_json(args.rollout.dyn_ckpt)
+    if dyn_cfg and isinstance(dyn_cfg.get("config"), dict):
+        roll_defaults = defaults.rollout
+        roll = merge_dataclass_from_config(args.rollout, dyn_cfg["config"], roll_defaults)
+    else:
+        roll = args.rollout
+
+    # LAM config
+    lam_cfg = load_config_json(roll.lam.lam_ckpt)
+    if lam_cfg and isinstance(lam_cfg.get("config"), dict):
+        lam_defaults = defaults.rollout.lam
+        lam = merge_dataclass_from_config(roll.lam, lam_cfg["config"], lam_defaults)
+    else:
+        lam = roll.lam
+
+    roll = replace(roll, lam=lam)
+    return replace(args, tokenizer=tok, rollout=roll)
+
+
+def apply_ckpt_config_to_rollout(cfg: RolloutConfig) -> RolloutConfig:
+    """
+    Fill RolloutConfig from config.json saved next to ckpts.
+    Priority: CLI values > ckpt config > defaults.
+    """
+    defaults = RolloutConfig(
+        npz_path=cfg.npz_path,
+        vq_ckpt=cfg.vq_ckpt,
+        dyn_ckpt=cfg.dyn_ckpt,
+        out_dir=cfg.out_dir,
+        start=cfg.start,
+        horizon=cfg.horizon,
+        context=cfg.context,
+    )
+
+    def _maybe_set(obj: RolloutConfig, field: str, value):
+        if value is None:
+            return obj
+        if getattr(obj, field) == getattr(defaults, field):
+            return replace(obj, **{field: value})
+        return obj
+
+    tok_cfg = load_config_json(cfg.vq_ckpt)
+    if tok_cfg and isinstance(tok_cfg.get("config"), dict):
+        t = tok_cfg["config"]
+        cfg = _maybe_set(cfg, "codebook_size", t.get("codebook"))
+        cfg = _maybe_set(cfg, "embed_dim", t.get("embed"))
+        cfg = _maybe_set(cfg, "hidden", t.get("hidden"))
+        cfg = _maybe_set(cfg, "tokenizer_arch", t.get("arch"))
+        cfg = _maybe_set(cfg, "patch_size", t.get("patch_size"))
+        cfg = _maybe_set(cfg, "model_dim", t.get("model_dim"))
+        cfg = _maybe_set(cfg, "num_blocks", t.get("num_blocks"))
+        cfg = _maybe_set(cfg, "num_heads_tok", t.get("num_heads"))
+        cfg = _maybe_set(cfg, "tokenizer_dropout", t.get("dropout"))
+        cfg = _maybe_set(cfg, "codebook_dropout", t.get("codebook_dropout"))
+        cfg = _maybe_set(cfg, "bg_thresh", t.get("bg_thresh"))
+        cfg = _maybe_set(cfg, "stats_path", t.get("stats"))
+
+    dyn_cfg = load_config_json(cfg.dyn_ckpt)
+    if dyn_cfg and isinstance(dyn_cfg.get("config"), dict):
+        d = dyn_cfg["config"]
+        cfg = _maybe_set(cfg, "d_model", d.get("d_model"))
+        cfg = _maybe_set(cfg, "n_heads", d.get("n_heads"))
+        cfg = _maybe_set(cfg, "n_layers", d.get("n_layers"))
+        cfg = _maybe_set(cfg, "dropout", d.get("dropout"))
+        cfg = _maybe_set(cfg, "model_type", d.get("model"))
+        cfg = _maybe_set(cfg, "mask_steps", d.get("mask_steps"))
+        cfg = _maybe_set(cfg, "bos_token_id", d.get("bos_token_id"))
+        cfg = _maybe_set(cfg, "use_lam", d.get("use_lam"))
+        cfg = _maybe_set(cfg, "lam_ckpt", d.get("lam_ckpt"))
+        cfg = _maybe_set(cfg, "lam_model_dim", d.get("lam_model_dim"))
+        cfg = _maybe_set(cfg, "lam_latent_dim", d.get("lam_latent_dim"))
+        cfg = _maybe_set(cfg, "lam_num_latents", d.get("lam_num_latents"))
+        cfg = _maybe_set(cfg, "lam_patch_size", d.get("lam_patch_size"))
+        cfg = _maybe_set(cfg, "lam_num_blocks", d.get("lam_num_blocks"))
+        cfg = _maybe_set(cfg, "lam_num_heads", d.get("lam_num_heads"))
+        cfg = _maybe_set(cfg, "lam_dropout", d.get("lam_dropout"))
+        cfg = _maybe_set(cfg, "lam_codebook_dropout", d.get("lam_codebook_dropout"))
+        cfg = _maybe_set(cfg, "stats_path", d.get("stats"))
+        cfg = _maybe_set(cfg, "patch_size", d.get("tok_patch_size"))
+        cfg = _maybe_set(cfg, "model_dim", d.get("tok_model_dim"))
+        cfg = _maybe_set(cfg, "num_blocks", d.get("tok_num_blocks"))
+        cfg = _maybe_set(cfg, "num_heads_tok", d.get("tok_num_heads"))
+        cfg = _maybe_set(cfg, "tokenizer_dropout", d.get("tok_dropout"))
+        cfg = _maybe_set(cfg, "codebook_dropout", d.get("tok_codebook_dropout"))
+        cfg = _maybe_set(cfg, "bg_thresh", d.get("bg_thresh"))
+
+    lam_cfg = load_config_json(cfg.lam_ckpt)
+    if lam_cfg and isinstance(lam_cfg.get("config"), dict):
+        l = lam_cfg["config"]
+        cfg = _maybe_set(cfg, "lam_model_dim", l.get("model_dim"))
+        cfg = _maybe_set(cfg, "lam_latent_dim", l.get("latent_dim"))
+        cfg = _maybe_set(cfg, "lam_num_latents", l.get("num_latents"))
+        cfg = _maybe_set(cfg, "lam_patch_size", l.get("patch_size"))
+        cfg = _maybe_set(cfg, "lam_num_blocks", l.get("num_blocks"))
+        cfg = _maybe_set(cfg, "lam_num_heads", l.get("num_heads"))
+        cfg = _maybe_set(cfg, "lam_dropout", l.get("dropout"))
+        cfg = _maybe_set(cfg, "lam_codebook_dropout", l.get("codebook_dropout"))
+        cfg = _maybe_set(cfg, "stats_path", l.get("stats"))
+
+    return cfg
+from configs.config_io import load_config_json, merge_dataclass_from_config

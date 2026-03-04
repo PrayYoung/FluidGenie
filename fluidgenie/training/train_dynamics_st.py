@@ -24,6 +24,8 @@ from jaxtyping import Array, Float, Int
 import tyro
 
 from configs.model_configs import DynamicsConfig
+from configs.config_io import save_config_json
+from dataclasses import asdict
 from fluidgenie.data.dataset_npz import NPZSequenceDataset, create_grain_dataloader
 from fluidgenie.training.logging_utils import TrainingLogger
 from fluidgenie.training.losses import dynamics_st_loss
@@ -210,6 +212,7 @@ def main():
 
     save_params(out, "final", state.params)
     save_params(out, "latest", state.params)
+    save_config_json(out, {"kind": "dynamics_st", "config": asdict(args)})
     logger.close()
     print("Saved ST dynamics to", out)
 
