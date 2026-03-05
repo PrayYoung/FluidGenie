@@ -31,7 +31,8 @@ class TokenizerSTVQVAE(nn.Module):
             self.num_blocks,
             self.num_heads,
             self.dropout,
-            use_causal_mask=False,
+            # Use causal mask to avoid future leakage and align with autoregressive rollout.
+            use_causal_mask=True,
         )
         self.vq = VectorQuantizer(
             self.latent_dim,
@@ -45,7 +46,8 @@ class TokenizerSTVQVAE(nn.Module):
             self.num_blocks,
             self.num_heads,
             self.dropout,
-            use_causal_mask=False,
+            # Use causal mask to avoid future leakage and align with autoregressive rollout.
+            use_causal_mask=True,
         )
 
     def __call__(

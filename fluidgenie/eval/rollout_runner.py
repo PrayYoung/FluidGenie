@@ -29,6 +29,7 @@ from fluidgenie.eval.samplers import (
 )
 from fluidgenie.eval.utils import ensure_dir, resolve_stats_path, vq_decode_tokens, st_decode_tokens
 from fluidgenie.models.lam import LatentActionModel
+from configs.config_io import load_config_json
 
 
 def _denorm(x: Float[Array, "... c"], mean, std, min_v=None, denom=None) -> Float[Array, "... c"]:
@@ -171,6 +172,13 @@ def run_rollout(cfg: RolloutConfig) -> None:
     L_in = cfg.context * h_tok * w_tok
     L_out = h_tok * w_tok
     max_len = L_in + L_out
+    print(f"[rollout] context={cfg.context} h_tok={h_tok} w_tok={w_tok} max_len={max_len}")
+    dyn_cfg = load_config_json(cfg.dyn_ckpt)
+    if dyn_cfg and isinstance(dyn_cfg.get("config"), dict):
+        dyn_ctx = dyn_cfg["config"].get("context")
+        dyn_model = dyn_cfg["config"].get("model")
+        print(f"[rollout] dyn_ckpt: context={dyn_ctx} model={dyn_model}")
+    assert max_len == (cfg.context + 1) * h_tok * w_tok, "max_len does not match context/token grid shape"
 
     dyn_model, dyn_params = load_dynamics_model(cfg, max_len=max_len, rng=rng)
 
@@ -256,6 +264,7 @@ def run_rollout(cfg: RolloutConfig) -> None:
                 )
             tok_next = unflatten_grid(tok_next_flat)
 
+        # Maintain a context window of cfg.context frames.
         new_tok_ctx = jnp.concatenate([tok_ctx[:, 1:], tok_next[:, None, :, :]], axis=1)
         return new_tok_ctx, tok_next
 
