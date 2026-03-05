@@ -253,6 +253,8 @@ def apply_ckpt_config_to_demo(args: DemoArgs) -> DemoArgs:
         roll = args.rollout
 
     # LAM config
+    if isinstance(roll.lam, dict):
+        roll = replace(roll, lam=LAMArgs(**roll.lam))
     lam_cfg = load_config_json(roll.lam.lam_ckpt)
     if lam_cfg and isinstance(lam_cfg.get("config"), dict):
         lam_defaults = defaults.rollout.lam
