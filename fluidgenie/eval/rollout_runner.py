@@ -161,7 +161,7 @@ def run_rollout(cfg: RolloutConfig) -> None:
         max_v = None
         denom = None
 
-    rng = jax.random.PRNGKey(cfg.rng_seed)
+    rng = jax.random.PRNGKey(cfg.seed)
 
     tok_model, tok_params, vq_encode_tokens, vq_cfg, codebook, dec_params = load_tokenizer(cfg, H, W, C)
 
@@ -268,7 +268,7 @@ def run_rollout(cfg: RolloutConfig) -> None:
                 tok_in,
                 L_out=L_out,
                 bos_token_id=cfg.bos_token_id,
-                rng_seed=cfg.rng_seed,
+                rng_seed=cfg.seed,
             )
             tok_next = unflatten_grid(tok_next_flat)
             new_tok_ctx = jnp.concatenate([tok_ctx[:, 1:], tok_next[:, None, :, :]], axis=1)

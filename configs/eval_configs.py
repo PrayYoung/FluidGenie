@@ -34,7 +34,7 @@ _DYN_LAM_NUM_HEADS_DEFAULT = DynamicsConfig.__dataclass_fields__["lam_num_heads"
 _DYN_LAM_DROPOUT_DEFAULT = DynamicsConfig.__dataclass_fields__["lam_dropout"].default
 _DYN_LAM_CODEBOOK_DROPOUT_DEFAULT = DynamicsConfig.__dataclass_fields__["lam_codebook_dropout"].default
 _DYN_BOS_DEFAULT = DynamicsConfig.__dataclass_fields__["bos_token_id"].default
-_DYN_RNG_DEFAULT = DynamicsConfig.__dataclass_fields__["rng_seed"].default
+_DYN_RNG_DEFAULT = DynamicsConfig.__dataclass_fields__["seed"].default
 
 
 @dataclass
@@ -83,7 +83,7 @@ class RolloutArgs:
     kv_cache: bool = True
     view: str = "density"
     bos_token_id: int = _DYN_BOS_DEFAULT
-    rng_seed: int = _DYN_RNG_DEFAULT
+    seed: int = _DYN_RNG_DEFAULT
     lam: LAMArgs = field(default_factory=LAMArgs)
 
 
@@ -159,7 +159,7 @@ class RolloutConfig:
     lam_dropout: float = _DYN_LAM_DROPOUT_DEFAULT
     lam_codebook_dropout: float = _DYN_LAM_CODEBOOK_DROPOUT_DEFAULT
     bos_token_id: int = _DYN_BOS_DEFAULT
-    rng_seed: int = _DYN_RNG_DEFAULT
+    seed: int = _DYN_RNG_DEFAULT
 
 
 def rollout_config_from_demo(args: DemoArgs) -> RolloutConfig:
@@ -192,7 +192,7 @@ def rollout_config_from_demo(args: DemoArgs) -> RolloutConfig:
         codebook_dropout=args.tokenizer.codebook_dropout,
         bg_thresh=args.tokenizer.bg_thresh,
         bos_token_id=args.rollout.bos_token_id,
-        rng_seed=args.rollout.rng_seed,
+        seed=args.rollout.seed,
         use_lam=args.rollout.lam.use_lam,
         lam_ckpt=args.rollout.lam.lam_ckpt,
         lam_model_dim=args.rollout.lam.lam_model_dim,
@@ -312,6 +312,7 @@ def apply_ckpt_config_to_rollout(cfg: RolloutConfig) -> RolloutConfig:
         cfg = _maybe_set(cfg, "model_type", d.get("model"))
         cfg = _maybe_set(cfg, "mask_steps", d.get("mask_steps"))
         cfg = _maybe_set(cfg, "bos_token_id", d.get("bos_token_id"))
+        cfg = _maybe_set(cfg, "seed", d.get("seed"))
         cfg = _maybe_set(cfg, "use_lam", d.get("use_lam"))
         cfg = _maybe_set(cfg, "lam_ckpt", d.get("lam_ckpt"))
         cfg = _maybe_set(cfg, "lam_model_dim", d.get("lam_model_dim"))

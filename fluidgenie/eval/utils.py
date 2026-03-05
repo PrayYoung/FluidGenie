@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Tuple, Callable, Any
+from typing import Tuple, Callable, Any, Optional
 
 import numpy as np
 import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float, Int
 from fluidgenie.training.checkpoint_utils import load_params
+from configs.config_io import load_config_json
 
 from fluidgenie.models.base_tokenizer import VQVAE, VQConfig, Decoder
 from fluidgenie.models.base_dynamics import TransformerDynamics, DynConfig
@@ -17,6 +18,16 @@ from fluidgenie.models.tokenizer_st import TokenizerSTVQVAE
 def ensure_dir(p: Path) -> Path:
     p.mkdir(parents=True, exist_ok=True)
     return p
+
+
+def resolve_stats_path(stats_path: str | None, ckpt_path: str) -> Optional[str]:
+    if stats_path:
+        return stats_path
+    cfg = load_config_json(ckpt_path)
+    if cfg and isinstance(cfg.get("config"), dict):
+        stats = cfg["config"].get("stats", "")
+        return stats or None
+    return None
 
 
 def vorticity_from_uv(uv: Float[Array, "h w 2"]) -> Float[Array, "h w"]:
