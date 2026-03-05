@@ -49,7 +49,7 @@ class DynamicsSTMaskGIT(nn.Module):
             b, t, h, w = video_tokens.shape
             video_tokens = video_tokens.reshape(b, t, h * w)
 
-        vid_embed = self.patch_embed(video_tokens)
+        vid_embed = self.patch_embed(video_tokens) # [B,T,N] -> [B,T,N,D]
 
         mask = batch.get("mask", None)
         if mask is not None and mask.ndim == 4:
@@ -63,9 +63,13 @@ class DynamicsSTMaskGIT(nn.Module):
                 mask_prob = jax.random.uniform(
                     rng1, minval=self.mask_ratio_min, maxval=self.mask_ratio_max
                 )
-            # Only mask the last frame (t = T-1) to match frame-by-frame rollout.
-            mask_last = jax.random.bernoulli(rng2, mask_prob, vid_embed[:, -1].shape)
-            mask = jnp.zeros(vid_embed.shape[:-1], dtype=jnp.bool_).at[:, -1].set(mask_last)
+            mask_shape = vid_embed.shape[:-1] # [B,T,N,D] -> [B,T,N]
+            if len(mask_shape) == 3:
+                # only mask the last frame
+                mask_last = jax.random.bernoulli(rng2, mask_prob, vid_embed[:,-1].shape[:-1])
+                mask = jnp.zeros(mask_shape, dtype=jnp.bool_).at[:, -1].set(mask_last)
+            else:
+                mask = jax.random.bernoulli(rng2, mask_prob, mask_shape)
         if mask is not None:
             mask = mask.at[:, 0].set(False)
             vid_embed = jnp.where(mask[..., None], self.mask_token, vid_embed)
