@@ -154,6 +154,7 @@ def main():
         dropout=args.dropout,
         mask_ratio_min=args.mask_ratio_min,
         mask_ratio_max=args.mask_ratio_max,
+        mask_full_prob=args.mask_full_prob,
     )
     tok_seq0 = st_encode_to_tokens(
         st_tokenizer_params,

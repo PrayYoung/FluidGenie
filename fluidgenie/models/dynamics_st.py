@@ -20,6 +20,7 @@ class DynamicsSTMaskGIT(nn.Module):
     dropout: float
     mask_ratio_min: float
     mask_ratio_max: float
+    mask_full_prob: float = 0.0
 
     def setup(self):
         self.dynamics = STTransformer(
@@ -56,17 +57,20 @@ class DynamicsSTMaskGIT(nn.Module):
             b, t, h, w = mask.shape
             mask = mask.reshape(b, t, h * w)
         if mask is None and training:
-            rng1, rng2 = jax.random.split(batch["mask_rng"])
+            rng1, rng2, rng3 = jax.random.split(batch["mask_rng"], 3)
             if self.mask_ratio_min >= self.mask_ratio_max:
                 mask_prob = self.mask_ratio_max
             else:
                 mask_prob = jax.random.uniform(
                     rng1, minval=self.mask_ratio_min, maxval=self.mask_ratio_max
                 )
+            # Explicitly include full-mask training samples to match rollout-from-mask behavior.
+            full_mask = jax.random.bernoulli(rng3, jnp.clip(self.mask_full_prob, 0.0, 1.0))
+            mask_prob = jnp.where(full_mask, 1.0, mask_prob)
             mask_shape = vid_embed.shape[:-1] # [B,T,N,D] -> [B,T,N]
             if len(mask_shape) == 3:
                 # only mask the last frame
-                mask_last = jax.random.bernoulli(rng2, mask_prob, vid_embed[:,-1].shape[:-1])
+                mask_last = jax.random.bernoulli(rng2, mask_prob, vid_embed[:, -1].shape[:-1])
                 mask = jnp.zeros(mask_shape, dtype=jnp.bool_).at[:, -1].set(mask_last)
             else:
                 mask = jax.random.bernoulli(rng2, mask_prob, mask_shape)

@@ -226,6 +226,7 @@ def run_rollout(cfg: RolloutConfig) -> None:
                 tok_ctx,
                 mask_steps=cfg.mask_steps,
                 rng_key=rng,
+                init_mask_ratio=cfg.init_mask_ratio,
                 latent_actions=latent_actions,
             )
         else:
@@ -239,6 +240,7 @@ def run_rollout(cfg: RolloutConfig) -> None:
                     vocab=cfg.codebook_size + 1,
                     mask_token_id=cfg.codebook_size,
                     mask_steps=cfg.mask_steps,
+                    rng_key=rng,
                 )
             else:
                 tok_next_flat = rollout_tokens_autoregressive(

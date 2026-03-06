@@ -23,6 +23,7 @@ _DYN_HEADS_DEFAULT = DynamicsConfig.__dataclass_fields__["n_heads"].default
 _DYN_LAYERS_DEFAULT = DynamicsConfig.__dataclass_fields__["n_layers"].default
 _DYN_DROPOUT_DEFAULT = DynamicsConfig.__dataclass_fields__["dropout"].default
 _DYN_MASK_STEPS_DEFAULT = DynamicsConfig.__dataclass_fields__["mask_steps"].default
+_DYN_MASK_RATIO_MAX_DEFAULT = DynamicsConfig.__dataclass_fields__["mask_ratio_max"].default
 _DYN_USE_LAM_DEFAULT = DynamicsConfig.__dataclass_fields__["use_lam"].default
 _DYN_LAM_CKPT_DEFAULT = DynamicsConfig.__dataclass_fields__["lam_ckpt"].default
 _DYN_LAM_MODEL_DIM_DEFAULT = DynamicsConfig.__dataclass_fields__["lam_model_dim"].default
@@ -80,6 +81,7 @@ class RolloutArgs:
     n_layers: int = _DYN_LAYERS_DEFAULT
     dropout: float = _DYN_DROPOUT_DEFAULT
     mask_steps: int = _DYN_MASK_STEPS_DEFAULT
+    init_mask_ratio: float = _DYN_MASK_RATIO_MAX_DEFAULT
     kv_cache: bool = True
     view: str = "density"
     bos_token_id: int = _DYN_BOS_DEFAULT
@@ -138,6 +140,7 @@ class RolloutConfig:
     model_type: str = _DYN_MODEL_DEFAULT
     use_kv_cache: bool = True
     mask_steps: int = _DYN_MASK_STEPS_DEFAULT
+    init_mask_ratio: float = _DYN_MASK_RATIO_MAX_DEFAULT
     view: str = "density"
     stats_path: str = _TOKENIZER_STATS_DEFAULT
     tokenizer_arch: str = _TOKENIZER_ARCH_DEFAULT
@@ -181,6 +184,7 @@ def rollout_config_from_demo(args: DemoArgs) -> RolloutConfig:
         model_type=args.rollout.model,
         use_kv_cache=args.rollout.kv_cache,
         mask_steps=args.rollout.mask_steps,
+        init_mask_ratio=args.rollout.init_mask_ratio,
         view=args.rollout.view,
         stats_path=args.tokenizer.stats,
         tokenizer_arch=args.tokenizer.arch,
@@ -313,6 +317,7 @@ def apply_ckpt_config_to_rollout(cfg: RolloutConfig) -> RolloutConfig:
         cfg = _maybe_set(cfg, "dropout", d.get("dropout"))
         cfg = _maybe_set(cfg, "model_type", d.get("model"))
         cfg = _maybe_set(cfg, "mask_steps", d.get("mask_steps"))
+        cfg = _maybe_set(cfg, "init_mask_ratio", d.get("mask_ratio_max"))
         cfg = _maybe_set(cfg, "bos_token_id", d.get("bos_token_id"))
         cfg = _maybe_set(cfg, "seed", d.get("seed"))
         cfg = _maybe_set(cfg, "use_lam", d.get("use_lam"))
