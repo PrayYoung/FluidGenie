@@ -93,6 +93,28 @@ class TokenizerSTVQVAE(nn.Module):
             tok_grid = jnp.where(bg_patch, 0, tok_grid)
         return tok_grid
 
+    def encode_video(
+            self, x: Float[Array, "b t h w c"], training: bool = False
+    ) -> Int[Array, "b t h2 w2"]:
+        # x: [B,T,H,W,C] -> tokens [B,T,h,w]
+        b, t, h, w, c = x.shape
+
+        tokens = self.vq_encode(x, training=training)["indices"]  # [B,T,N]
+
+        h_pad = -h % self.patch_size
+        w_pad = -w % self.patch_size
+        hn = (h + h_pad) // self.patch_size
+        wn = (w + w_pad) // self.patch_size
+        tok_grid = tokens.reshape(b, t, hn, wn)
+        if self.bg_thresh > 0:
+            bg_px = jnp.all(jnp.abs(x + 1.0) < self.bg_thresh, axis=-1)  # [B,T,H,W]
+            bg_px = bg_px[..., None].astype(jnp.float32)
+            bg_patches = patchify(bg_px, self.patch_size)  # [B,T,N,P]
+            bg_patch = jnp.all(bg_patches > 0.5, axis=-1).reshape(b, t, hn, wn)
+            tok_grid = jnp.where(bg_patch, 0, tok_grid)
+        
+        return tok_grid
+
     def decode_tokens(
         self, indices: Int[Array, "b h w"], video_hw: Tuple[int, int]
     ) -> Float[Array, "b h w c"]:

@@ -90,7 +90,7 @@ def st_maskgit_rollout_tokens(
         conf_protected = jnp.where(~mask_flat, 1e9, conf)
         # compare all confidence scores against the threshold
         kth = jnp.sort(conf_protected, axis=-1)[:, -k]
-        is_unmasked = conf >= kth[:, None]
+        is_unmasked = conf_protected >= kth[:, None]
         # invert 'is_unmask' to create the new mask for the next step
         tok_next_flat = jnp.where(is_unmasked, pred, tok_next.reshape(b, n))
         tok_next = tok_next_flat.reshape(b, h, w)

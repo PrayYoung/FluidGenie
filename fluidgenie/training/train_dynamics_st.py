@@ -26,23 +26,13 @@ import tyro
 from configs.model_configs import DynamicsConfig
 from configs.config_io import save_config_json
 from dataclasses import asdict
-from fluidgenie.data.dataset_npz import NPZSequenceDataset, create_grain_dataloader
+from fluidgenie.data.dataset_npz import create_grain_dataloader
 from fluidgenie.training.logging_utils import TrainingLogger
 from fluidgenie.training.losses import dynamics_st_loss
 from fluidgenie.training.checkpoint_utils import save_params, load_params
-from fluidgenie.models.base_tokenizer import VQConfig
 from fluidgenie.models.tokenizer_st import TokenizerSTVQVAE
 from fluidgenie.models.dynamics_st import DynamicsSTMaskGIT
 from fluidgenie.models.lam import LatentActionModel
-
-
-def encode_tokens_seq(
-    tokenizer_encode_fn, tokenizer_params, x_seq: Float[Array, "b t h w c"]
-) -> Int[Array, "b t h2 w2"]:
-    b, t, h, w, c = x_seq.shape
-    x_flat = x_seq.reshape(b * t, h, w, c)
-    tok_flat = tokenizer_encode_fn(tokenizer_params, x_flat)
-    return tok_flat.reshape(b, t, tok_flat.shape[1], tok_flat.shape[2])
 
 
 class TrainState(train_state.TrainState):
@@ -75,7 +65,8 @@ def train_step_st(
 def main():
     args = tyro.cli(DynamicsConfig)
     if args.model != "st_maskgit":
-        print(f"[warn] train_dynamics_st expects model=st_maskgit, got {args.model}. Continuing.")
+        print(f"[warn] train_dynamics_st expects model=st_maskgit, got {args.model}. Overwriting.")
+        args.model = "st_maskgit"
 
     rng = jax.random.PRNGKey(args.seed)
 
@@ -114,7 +105,7 @@ def main():
 
     def _st_encode_to_tokens(params, x: jnp.ndarray) -> jnp.ndarray:
         out = st_tokenizer_model.apply(
-            {"params": params}, x, training=False, method=TokenizerSTVQVAE.encode_frame
+            {"params": params}, x, training=False, method=TokenizerSTVQVAE.encode_video
         )
         return out.astype(jnp.int32)
 
@@ -164,8 +155,7 @@ def main():
         mask_ratio_min=args.mask_ratio_min,
         mask_ratio_max=args.mask_ratio_max,
     )
-    tok_seq0 = encode_tokens_seq(
-        st_encode_to_tokens,
+    tok_seq0 = st_encode_to_tokens(
         st_tokenizer_params,
         jnp.concatenate([x_ctx0, x_tgt0], axis=1),
     )
@@ -194,7 +184,7 @@ def main():
         x_tgt = jnp.array(x_tgt)
 
         x_seq = jnp.concatenate([x_ctx, x_tgt], axis=1)
-        tok_seq = encode_tokens_seq(st_encode_to_tokens, st_tokenizer_params, x_seq)
+        tok_seq = st_encode_to_tokens(st_tokenizer_params, x_seq)
         latent_actions = None
         if args.use_lam:
             latent_actions = lam_encode(lam_params, x_seq)

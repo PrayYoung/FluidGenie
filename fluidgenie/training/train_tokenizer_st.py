@@ -53,6 +53,9 @@ def make_train_step(alpha:float, beta: float, gamma: float):
 
 def main():
     args = tyro.cli(TokenizerConfig)
+    if args.arch != "st":
+        print(f"[warn] train_tokenizer_st expects arch=st, got {args.arch}. Overwriting.")
+        args.arch = "st"
 
     rng = jax.random.PRNGKey(args.seed)
 

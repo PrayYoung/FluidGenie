@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional, Tuple
 
 import numpy as np
 import jax
@@ -17,7 +16,6 @@ try:
 except Exception:  # pragma: no cover
     import imageio  # type: ignore
 
-from fluidgenie.data.preprocess import patchify
 from configs.eval_configs import RolloutConfig
 from fluidgenie.eval.loaders import load_tokenizer, load_dynamics_model, load_lam_model
 from fluidgenie.eval.metrics import compute_rollout_metrics
@@ -59,10 +57,9 @@ def encode_context_tokens(
 ) -> Int[Array, "1 t h2 w2"]:
     # ctx_frames: [context,H,W,C] -> [1,context,h,w]
     x = _norm(ctx_frames.astype(np.float32), mean, std, min_v, denom)
-    x = jnp.array(x, dtype=jnp.float32)
-    # vmap over time dimension
-    tok = jax.vmap(lambda f: vq_encode_tokens(tokenizer_params, f[None, ...])[0])(x)
-    return tok[None, ...]
+    x_5d = jnp.array(x[None, ...], dtype=jnp.float32)
+    tok = vq_encode_tokens(tokenizer_params, x_5d)
+    return tok
 
 
 def visualize_rollout(
@@ -167,7 +164,9 @@ def run_rollout(cfg: RolloutConfig) -> None:
     tok_model, tok_params, vq_encode_tokens, vq_cfg, codebook, dec_params = load_tokenizer(cfg, H, W, C)
 
     x0 = jnp.array(_norm(fields[cfg.start][None, ...], mean, std, min_v, denom), dtype=jnp.float32)
-    tok0 = vq_encode_tokens(tok_params, x0)
+
+    x0_5d = x0[:,None, ...]  # [1,1,H,W,C]
+    tok0 = vq_encode_tokens(tok_params, x0_5d)[:,0]
     h_tok, w_tok = int(tok0.shape[1]), int(tok0.shape[2])
     L_in = cfg.context * h_tok * w_tok
     L_out = h_tok * w_tok
@@ -193,19 +192,6 @@ def run_rollout(cfg: RolloutConfig) -> None:
         denom,
     )
 
-    bg_mask = None
-    if cfg.tokenizer_arch == "st" and cfg.bg_thresh > 0:
-        x_last = ctx_frames[-1][None, ...]
-        x_last = _norm(x_last, mean, std, min_v, denom)
-        bg_px = jnp.all(jnp.abs(x_last + 1.0) < cfg.bg_thresh, axis=-1)  # [1,H,W]
-        h_pad = -H % cfg.patch_size
-        w_pad = -W % cfg.patch_size
-        hn = (H + h_pad) // cfg.patch_size
-        wn = (W + w_pad) // cfg.patch_size
-        bg_px = bg_px[:, None, :, :, None].astype(jnp.float32)
-        bg_patches = patchify(bg_px, cfg.patch_size)  # [1,1,N,P]
-        bg_mask = jnp.all(bg_patches > 0.5, axis=-1).reshape(1, hn, wn)
-
     lam_model, lam_params = load_lam_model(cfg, H, W, C, rng)
     ctx_frames_dyn = _norm(fields[cfg.start : cfg.start + cfg.context], mean, std, min_v, denom)
 
@@ -215,8 +201,9 @@ def run_rollout(cfg: RolloutConfig) -> None:
     def unflatten_grid(tok_flat: Int[Array, "b l_out"]) -> Int[Array, "b h w"]:
         return tok_flat.reshape((tok_flat.shape[0], h_tok, w_tok))
 
-    def rollout_step(tok_ctx, _):
-        tok_in = flatten_ctx(tok_ctx).astype(jnp.int32)
+    def rollout_step(carry, _):
+        tok_ctx, step_rng = carry
+        step_rng, rng = jax.random.split(step_rng)
         if cfg.model_type == "st_maskgit":
             latent_actions = None
             if cfg.use_lam:
@@ -240,9 +227,9 @@ def run_rollout(cfg: RolloutConfig) -> None:
                 mask_steps=cfg.mask_steps,
                 rng_key=rng,
                 latent_actions=latent_actions,
-                bg_mask=bg_mask,
             )
         else:
+            tok_in = flatten_ctx(tok_ctx).astype(jnp.int32)
             if cfg.model_type == "maskgit":
                 tok_next_flat = maskgit_rollout_tokens(
                     dyn_model,
@@ -266,7 +253,7 @@ def run_rollout(cfg: RolloutConfig) -> None:
 
         # Maintain a context window of cfg.context frames.
         new_tok_ctx = jnp.concatenate([tok_ctx[:, 1:], tok_next[:, None, :, :]], axis=1)
-        return new_tok_ctx, tok_next
+        return (new_tok_ctx, step_rng), tok_next
 
     if cfg.model_type == "transformer" and cfg.use_kv_cache:
         def rollout_cached_step(tok_ctx, _):
@@ -285,7 +272,8 @@ def run_rollout(cfg: RolloutConfig) -> None:
 
         _, tok_preds = jax.jit(lambda tc: jax.lax.scan(rollout_cached_step, tc, None, length=cfg.horizon))(ctx_tok)
     else:
-        _, tok_preds = jax.jit(lambda tc: jax.lax.scan(rollout_step, tc, None, length=cfg.horizon))(ctx_tok)
+        initial_carry = (ctx_tok, rng)
+        _, tok_preds = jax.jit(lambda tc: jax.lax.scan(rollout_step, tc, None, length=cfg.horizon))(initial_carry)
 
     preds = []
     for k in range(cfg.horizon):

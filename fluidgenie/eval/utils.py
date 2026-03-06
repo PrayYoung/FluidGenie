@@ -112,18 +112,20 @@ def get_codebook_and_decoder_params(vq_params: dict) -> Tuple[Float[Array, "k d"
     return codebook, dec_params
 
 
-def make_vq_encode_tokens(vq_model: VQVAE) -> Callable[[dict, Float[Array, "b h w c"]], Int[Array, "b h2 w2"]]:
+def make_vq_encode_tokens(vq_model: VQVAE) -> Callable[[dict, Float[Array, "b t h w c"]], Int[Array, "b t h2 w2"]]:
     @jax.jit
-    def _encode(vq_params: dict, x: Float[Array, "b h w c"]) -> Int[Array, "b h2 w2"]:
-        _x_rec, tok, _commit, _cb = vq_model.apply({"params": vq_params}, x)
-        return tok.astype(jnp.int32)
+    def _encode(vq_params: dict, x: Float[Array, "b t h w c"]) -> Int[Array, "b t h2 w2"]:
+        b, t, h, w, c = x.shape
+        x_flat = x.reshape((b * t, h, w, c))
+        _x_rec, tok_flat, _commit, _cb = vq_model.apply({"params": vq_params}, x_flat)
+        return tok_flat.astype(jnp.int32).reshape(b, t, tok_flat.shape[1], tok_flat.shape[2])
     return _encode
 
 
-def make_st_encode_tokens(vq_model: TokenizerSTVQVAE) -> Callable[[dict, Float[Array, "b h w c"]], Int[Array, "b h2 w2"]]:
+def make_st_encode_tokens(vq_model: TokenizerSTVQVAE) -> Callable[[dict, Float[Array, "b t h w c"]], Int[Array, "b t h2 w2"]]:
     @jax.jit
-    def _encode(vq_params: dict, x: Float[Array, "b h w c"]) -> Int[Array, "b h2 w2"]:
-        tok = vq_model.apply({"params": vq_params}, x, method=TokenizerSTVQVAE.encode_frame)
+    def _encode(vq_params: dict, x: Float[Array, "b t h w c"]) -> Int[Array, "b t h2 w2"]:
+        tok = vq_model.apply({"params": vq_params}, x, method=TokenizerSTVQVAE.encode_video)
         return tok.astype(jnp.int32)
     return _encode
 

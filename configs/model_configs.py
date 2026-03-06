@@ -67,7 +67,7 @@ class DynamicsConfig:
 
     # MaskGIT options (only used when model = "maskgit")
     mask_ratio_min: float = 0.1
-    mask_ratio_max: float = 0.9
+    mask_ratio_max: float = 1.0
     mask_schedule: str = "cosine"
     mask_steps: int = 8
     bos_token_id: int = 0
