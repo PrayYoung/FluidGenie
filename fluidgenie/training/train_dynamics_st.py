@@ -6,6 +6,9 @@ Run:
     --data data/raw/ns2d \
     --vq-ckpt runs/tokenizer/st/latest \
     --out runs/dynamics/st \
+    --context 4 \
+    --pred 4 \
+    --frame-stride 2 \
     --use-lam
 """
 
@@ -41,7 +44,11 @@ class TrainState(train_state.TrainState):
 @jax.jit
 def train_step_st(
     state: TrainState,
-    tok_seq: Int[Array, "b t n"],
+    tok_seq: Int[Array, "b t h w"],
+    context_frames: int,
+    mask_ratio_min: float,
+    mask_ratio_max: float,
+    mask_full_prob: float,
     mask_key: jax.Array,
     dropout_key: jax.Array,
     latent_actions: Float[Array, "b t m d"] | None = None,
@@ -51,6 +58,10 @@ def train_step_st(
             state.apply_fn,
             params,
             tok_seq,
+            context_frames,
+            mask_ratio_min,
+            mask_ratio_max,
+            mask_full_prob,
             mask_key,
             dropout_key,
             latent_actions,
@@ -74,6 +85,8 @@ def main():
         args.data,
         batch_size=args.batch,
         context=args.context,
+        pred=args.pred,
+        frame_stride=args.frame_stride,
         seed=args.seed,
         num_workers=args.grain_workers,
         stats_path=stats_path,
@@ -191,9 +204,21 @@ def main():
 
         dropout_rng, step_key = jax.random.split(dropout_rng)
         mask_rng, mask_key = jax.random.split(mask_rng)
-        state, metrics = train_step_st(state, tok_seq, mask_key, step_key, latent_actions)
+        state, metrics = train_step_st(
+            state,
+            tok_seq,
+            args.context,
+            args.mask_ratio_min,
+            args.mask_ratio_max,
+            args.mask_full_prob,
+            mask_key,
+            step_key,
+            latent_actions,
+        )
 
         if logger.should_log(step):
+            metrics["pred_frames"] = jnp.asarray(args.pred, dtype=jnp.float32)
+            metrics["frame_stride"] = jnp.asarray(args.frame_stride, dtype=jnp.float32)
             logger.log(step, metrics, prefix="train")
 
         if step % 1000 == 0 and step > 0:

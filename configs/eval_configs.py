@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, asdict, replace
 
 from configs.model_configs import DynamicsConfig, TokenizerConfig
+from configs.config_io import load_config_json, merge_dataclass_from_config
 
 _TOKENIZER_CODEBOOK_DEFAULT = TokenizerConfig.__dataclass_fields__["codebook"].default
 _TOKENIZER_EMBED_DEFAULT = TokenizerConfig.__dataclass_fields__["embed"].default
@@ -311,6 +312,7 @@ def apply_ckpt_config_to_rollout(cfg: RolloutConfig) -> RolloutConfig:
     dyn_cfg = load_config_json(cfg.dyn_ckpt)
     if dyn_cfg and isinstance(dyn_cfg.get("config"), dict):
         d = dyn_cfg["config"]
+        cfg = _maybe_set(cfg, "context", d.get("context"))
         cfg = _maybe_set(cfg, "d_model", d.get("d_model"))
         cfg = _maybe_set(cfg, "n_heads", d.get("n_heads"))
         cfg = _maybe_set(cfg, "n_layers", d.get("n_layers"))
@@ -353,4 +355,3 @@ def apply_ckpt_config_to_rollout(cfg: RolloutConfig) -> RolloutConfig:
         cfg = _maybe_set(cfg, "stats_path", l.get("stats"))
 
     return cfg
-from configs.config_io import load_config_json, merge_dataclass_from_config

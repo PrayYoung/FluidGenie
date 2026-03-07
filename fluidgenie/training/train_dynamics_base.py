@@ -3,10 +3,10 @@ Train Transformer dynamics in token space.
 
 We assume you already trained a VQ tokenizer (VQVAE) and saved params ckpt.
 This script:
-  - loads NPZ episodes
+  - loads NPY episodes
   - samples windows of frames
   - encodes frames -> token grids via VQ encoder+codebook (argmin)
-  - trains Transformer to predict next-frame tokens from context-frame tokens
+  - trains Transformer to predict K future frames from context-frame tokens
 
 Run (example):
   uv run python -m fluidgenie.training.train_dynamics_base \
@@ -15,7 +15,9 @@ Run (example):
     --out runs/dynamics/base \
     --steps 20000 \
     --batch 4 \
-    --context 2 \
+    --context 4 \
+    --pred 4 \
+    --frame-stride 2 \
     --codebook 512
 """
 
@@ -53,13 +55,6 @@ def flatten_token_sequence(tok_ctx: Int[Array, "b t h w"]) -> Int[Array, "b l"]:
     tok_ctx: [B, context, h, w] -> [B, L] where L=context*h*w
     """
     return rearrange(tok_ctx, "b t h w -> b (t h w)")
-
-
-def flatten_token_grid(tok: Int[Array, "b h w"]) -> Int[Array, "b l"]:
-    """
-    tok: [B, h, w] -> [B, h*w]
-    """
-    return rearrange(tok, "b h w -> b (h w)")
 
 
 def encode_tokens_seq(
@@ -101,10 +96,9 @@ def make_train_step(
         """
         Args:
           tok_in:  int32 [B, L_in]  (context tokens flattened)
-          tok_tgt: int32 [B, L_out] (next-frame tokens flattened)
-        We train a model that outputs logits for each position in L_out, conditioned on tok_in.
-        Simplest approach:
-          feed [tok_in, tok_tgt_shifted] into one transformer and predict tok_tgt
+          tok_tgt: int32 [B, L_out] (multi-step future tokens flattened)
+        We train a model that outputs logits for each target token position in L_out,
+        conditioned on tok_in.
         """
         B = tok_in.shape[0]
         L_in = tok_in.shape[1]
@@ -166,12 +160,14 @@ def main():
 
     rng = jax.random.PRNGKey(args.seed)
 
-    # Dataset windows: context frames + 1 pred frame
+    # Dataset windows: context frames + pred future frames with configurable stride.
     stats_path = args.stats if args.stats else None
     loader = create_grain_dataloader(
         args.data,
         batch_size=args.batch,
         context=args.context,
+        pred=args.pred,
+        frame_stride=args.frame_stride,
         seed=args.seed,
         num_workers=args.grain_workers,
         stats_path=stats_path,
@@ -199,12 +195,13 @@ def main():
 
     vq_encode_to_tokens = jax.jit(_vq_encode_to_tokens)
 
-    # Encode once to get token grid resolution
-    tok_tgt0 = encode_tokens_seq(vq_encode_to_tokens, base_tokenizer_params, x_tgt0)[:, 0]
+    # Encode once to get token grid resolution.
+    tok_tgt0 = encode_tokens_seq(vq_encode_to_tokens, base_tokenizer_params, x_tgt0)
 
-    h_tok, w_tok = tok_tgt0.shape[1], tok_tgt0.shape[2]
-    L_in = args.context * h_tok * w_tok
-    L_out = h_tok * w_tok
+    h_tok, w_tok = tok_tgt0.shape[2], tok_tgt0.shape[3]
+    L_frame = h_tok * w_tok
+    L_in = args.context * L_frame
+    L_out = args.pred * L_frame
     max_len = L_in + L_out
 
     if args.model == "st_maskgit":
@@ -251,16 +248,19 @@ def main():
         x_tgt = jnp.array(x_tgt)
         # Tokenize context and target (teacher forcing)
         tok_ctx = encode_tokens_seq(vq_encode_to_tokens, base_tokenizer_params, x_ctx)
-        tok_tgt = encode_tokens_seq(vq_encode_to_tokens, base_tokenizer_params, x_tgt)[:, 0]
+        tok_tgt = encode_tokens_seq(vq_encode_to_tokens, base_tokenizer_params, x_tgt)
 
         tok_in = flatten_token_sequence(tok_ctx)     # [B, L_in]
-        tok_out = flatten_token_grid(tok_tgt)        # [B, L_out]
+        tok_out = flatten_token_sequence(tok_tgt)    # [B, L_out]
 
         dropout_rng, step_key = jax.random.split(dropout_rng)
         mask_rng, mask_key = jax.random.split(mask_rng)
         state, metrics = train_step(state, tok_in, tok_out, step_key, mask_key)
 
         if logger.should_log(step):
+            metrics["target_tokens"] = jnp.asarray(L_out, dtype=jnp.float32)
+            metrics["pred_frames"] = jnp.asarray(args.pred, dtype=jnp.float32)
+            metrics["frame_stride"] = jnp.asarray(args.frame_stride, dtype=jnp.float32)
             logger.log(step, metrics, prefix="train")
 
         if step % 1000 == 0 and step > 0:
@@ -272,7 +272,10 @@ def main():
     save_config_json(out, {"kind": "dynamics_base", "config": asdict(args)})
     logger.close()
     print("Saved dynamics to", out)
-    print(f"Token grid: {h_tok}x{w_tok}, L_in={L_in}, L_out={L_out}, max_len={max_len}")
+    print(
+        f"Token grid: {h_tok}x{w_tok}, L_in={L_in}, L_out={L_out}, max_len={max_len}, "
+        f"pred_frames={args.pred}, frame_stride={args.frame_stride}"
+    )
 
 
 if __name__ == "__main__":

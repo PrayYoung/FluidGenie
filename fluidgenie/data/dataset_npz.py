@@ -7,11 +7,19 @@ import numpy as np
 from jaxtyping import Array, Float
 
 class NPZSequenceDataset:
-    def __init__(self, data_dir: str, context: int = 2, pred: int = 1, stats_path: str | None = None):
+    def __init__(
+        self,
+        data_dir: str,
+        context: int = 2,
+        pred: int = 1,
+        frame_stride: int = 1,
+        stats_path: str | None = None,
+    ):
         self.files = sorted(glob.glob(os.path.join(data_dir, "*.npy")))
         assert self.files, f"No npy found in {data_dir}"
         self.context = context
         self.pred = pred
+        self.frame_stride = frame_stride
         self._memmaps: list[np.ndarray] = []
         self.mean = None
         self.std = None
@@ -34,8 +42,10 @@ class NPZSequenceDataset:
                 T = data.shape[0]
             except Exception:
                 raise ValueError(f"Error loading {f}. Ensure it is a .npy array with shape [T,H,W,C].")
-            # need context frames + pred frames
-            for t in range(0, T - (context + pred) + 1):
+            # Last target index accessed by this window:
+            # t + context + (pred - 1) * frame_stride
+            max_t = T - (context + (pred - 1) * frame_stride)
+            for t in range(0, max_t):
                 self.index.append((i, t))
 
     def __len__(self) -> int:
@@ -47,7 +57,10 @@ class NPZSequenceDataset:
         file_idx, t = self.index[idx]
         fields = self._memmaps[file_idx]
         x = fields[t : t + self.context]          # [context,H,W,C]
-        y = fields[t + self.context : t + self.context + self.pred]  # [pred,H,W,C]
+        target_start = t + self.context
+        y = fields[
+            target_start : target_start + self.pred * self.frame_stride : self.frame_stride
+        ]  # [pred,H,W,C]
         x = x.astype(np.float32)
         y = y.astype(np.float32)
         if self.min_v is not None and self.max_v is not None:
@@ -64,12 +77,20 @@ def create_grain_dataloader(
     data_dir: str,
     batch_size: int,
     context: int = 2,
+    pred: int = 1,
+    frame_stride: int = 1,
     seed: int = 0,
     num_workers: int = 4,
     stats_path: str | None = None,
     worker_buffer_size: int = 4,
 ) -> grain.DataLoader:
-    source = NPZSequenceDataset(data_dir, context=context, pred=1, stats_path=stats_path)
+    source = NPZSequenceDataset(
+        data_dir,
+        context=context,
+        pred=pred,
+        frame_stride=frame_stride,
+        stats_path=stats_path,
+    )
 
     sampler = grain.samplers.IndexSampler(
         num_records=len(source),

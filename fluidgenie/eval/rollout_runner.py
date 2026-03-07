@@ -176,7 +176,18 @@ def run_rollout(cfg: RolloutConfig) -> None:
     if dyn_cfg and isinstance(dyn_cfg.get("config"), dict):
         dyn_ctx = dyn_cfg["config"].get("context")
         dyn_model = dyn_cfg["config"].get("model")
-        print(f"[rollout] dyn_ckpt: context={dyn_ctx} model={dyn_model}")
+        dyn_pred = int(dyn_cfg["config"].get("pred", 1))
+        dyn_stride = int(dyn_cfg["config"].get("frame_stride", 1))
+        print(
+            f"[rollout] dyn_ckpt: context={dyn_ctx} model={dyn_model} "
+            f"pred={dyn_pred} frame_stride={dyn_stride}"
+        )
+        if dyn_pred > 1 or dyn_stride > 1:
+            print(
+                "[rollout][warn] This rollout path predicts one frame per step. "
+                "Multi-step dynamics checkpoints (pred>1 or frame_stride>1) "
+                "need a dedicated multi-step inference path. TODO: add multi-step rollout."
+            )
     assert max_len == (cfg.context + 1) * h_tok * w_tok, "max_len does not match context/token grid shape"
 
     dyn_model, dyn_params = load_dynamics_model(cfg, max_len=max_len, rng=rng)
@@ -276,6 +287,16 @@ def run_rollout(cfg: RolloutConfig) -> None:
     else:
         initial_carry = (ctx_tok, rng)
         _, tok_preds = jax.jit(lambda tc: jax.lax.scan(rollout_step, tc, None, length=cfg.horizon))(initial_carry)
+
+    # Quick diagnostics for "static rollout" cases.
+    last_ctx = ctx_tok[:, -1]
+    first_change = float(jnp.mean(tok_preds[0] != last_ctx))
+    if cfg.horizon > 1:
+        step_changes = jnp.mean(tok_preds[1:] != tok_preds[:-1], axis=(1, 2, 3))
+        mean_step_change = float(jnp.mean(step_changes))
+    else:
+        mean_step_change = 0.0
+    print(f"[rollout] token_change first_vs_ctx={first_change:.4f} mean_step={mean_step_change:.4f}")
 
     preds = []
     for k in range(cfg.horizon):

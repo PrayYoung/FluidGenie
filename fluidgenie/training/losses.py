@@ -171,15 +171,40 @@ def dynamics_st_loss(
     apply_fn: Callable[..., Any],
     params: Dict[str, Any],
     tok_seq: Int[Array, "b t h w"],
+    context_frames: int,
+    mask_ratio_min: float,
+    mask_ratio_max: float,
+    mask_full_prob: float,
     mask_key: jax.Array,
     dropout_key: jax.Array,
     latent_actions: Float[Array, "b t m d"] | None = None,
 ) -> Tuple[Float[Array, ""], Dict[str, Float[Array, ""]]]:
     """
-    Mask only the last frame (t = T-1). Loss is computed ONLY on masked tokens
-    of the last frame to match frame-by-frame rollout.
+    Mask only the future region [context_frames:] and compute CE on masked
+    future tokens across all predicted frames.
     """
-    batch = {"video_tokens": tok_seq, "mask_rng": mask_key}
+    b, t, h, w = tok_seq.shape
+    n = h * w
+    tok_seq_flat = tok_seq.reshape(b, t, n)
+    pred_frames = t - context_frames
+    assert pred_frames > 0, "tok_seq must include at least one future frame"
+
+    rng1, rng2, rng3 = jax.random.split(mask_key, 3)
+    if mask_ratio_min >= mask_ratio_max:
+        mask_prob = mask_ratio_max
+    else:
+        mask_prob = jax.random.uniform(rng1, minval=mask_ratio_min, maxval=mask_ratio_max)
+    full_mask = jax.random.bernoulli(rng3, jnp.clip(mask_full_prob, 0.0, 1.0))
+    mask_prob = jnp.where(full_mask, 1.0, mask_prob)
+
+    mask_future = jax.random.bernoulli(rng2, mask_prob, shape=(b, pred_frames, n))
+    mask_any = jnp.any(mask_future, axis=(1, 2), keepdims=True)
+    # Ensure at least one supervised token per sample.
+    default_mask = jnp.zeros((b, pred_frames, n), dtype=jnp.bool_).at[:, 0, 0].set(True)
+    mask_future = jnp.where(mask_any, mask_future, default_mask)
+
+    mask = jnp.zeros((b, t, n), dtype=jnp.bool_).at[:, context_frames:, :].set(mask_future)
+    batch = {"video_tokens": tok_seq, "mask_rng": mask_key, "mask": mask}
     if latent_actions is not None:
         batch["latent_actions"] = latent_actions
     outputs = apply_fn(
@@ -191,20 +216,22 @@ def dynamics_st_loss(
     mask = outputs["mask"]
     logits = outputs["token_logits"]
 
-    b, t, n, v = logits.shape
-    tok_seq_flat = tok_seq.reshape(b, t, n)
+    b, t, n, _ = logits.shape
     assert mask.shape == tok_seq_flat.shape, "mask shape must match token grid"
 
-    # Sanity: earlier frames should be unmasked; last frame has masks (unless ratio==0).
-    prev_ok = jnp.all(~mask[:, :-1])
-    last_any = jnp.any(mask[:, -1])
+    # Sanity: context frames are always unmasked; future region has masks.
+    prev_ok = jnp.all(~mask[:, :context_frames])
+    future_any = jnp.any(mask[:, context_frames:])
 
     ce = optax.softmax_cross_entropy_with_integer_labels(logits, tok_seq_flat)
-    last_mask = mask[:, -1].astype(ce.dtype)
+    future_mask = mask[:, context_frames:].astype(ce.dtype)
+    future_ce = ce[:, context_frames:]
     # If sanity checks fail, emit NaN to surface the issue.
-    sanity_ok = jnp.logical_and(prev_ok, jnp.logical_or(last_any, last_mask.sum() == 0))
-    last_mask = jnp.where(sanity_ok, last_mask, jnp.nan)
-    denom = jnp.maximum(last_mask.sum(), 1.0)
-    loss = (last_mask * ce[:, -1]).sum() / denom
-    acc = (last_mask * (logits[:, -1].argmax(-1) == tok_seq_flat[:, -1])).sum() / denom
+    sanity_ok = jnp.logical_and(prev_ok, jnp.logical_or(future_any, future_mask.sum() == 0))
+    future_mask = jnp.where(sanity_ok, future_mask, jnp.nan)
+    denom = jnp.maximum(future_mask.sum(), 1.0)
+    future_pred = logits[:, context_frames:].argmax(-1)
+    future_tgt = tok_seq_flat[:, context_frames:]
+    loss = (future_mask * future_ce).sum() / denom
+    acc = (future_mask * (future_pred == future_tgt)).sum() / denom
     return loss, {"loss": loss, "masked_acc": acc}

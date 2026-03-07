@@ -49,6 +49,8 @@ class DynamicsConfig:
     steps: int = 20000
     batch: int = 4
     context: int = 2
+    pred: int = 1
+    frame_stride: int = 1
     lr: float = 3e-4
     seed: int = 0
 
