@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any, Tuple
-
 import jax
 import jax.numpy as jnp
 
@@ -58,6 +56,7 @@ def load_dynamics_model(cfg: RolloutConfig, max_len: int, rng: jax.Array):
             dropout=cfg.dropout,
             mask_ratio_min=0.0,
             mask_ratio_max=1.0,
+            mask_full_prob=0.2,
         )
         tok_seq0 = jnp.zeros((1, cfg.context + 1, 1, 1), dtype=jnp.int32)
         init_batch = {"video_tokens": tok_seq0, "mask_rng": mask_rng}

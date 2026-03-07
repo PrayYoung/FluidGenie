@@ -12,9 +12,8 @@ Run:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Iterator, Tuple
+from typing import Tuple
 
-import numpy as np
 import jax
 import jax.numpy as jnp
 import optax

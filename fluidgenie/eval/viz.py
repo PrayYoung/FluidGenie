@@ -86,7 +86,8 @@ def save_tokenizer_recon(
 
     x_in = jnp.array(x_norm[None, ...], dtype=jnp.float32)
     if tokenizer_arch == "st":
-        tok = vq_encode_tokens(st_tokenizer_params, x_in)[0]
+        x_in_5d = x_in[:, None, ...]  # [B,1,H,W,C] for encode_video
+        tok = vq_encode_tokens(st_tokenizer_params, x_in_5d)[0, 0]
         x_rec = st_decode_tokens(st_tokenizer_model, st_tokenizer_params, tok[None, ...], (H, W))[0]
         commit = 0.0
         cb = 0.0
@@ -169,7 +170,8 @@ def save_tokenizer_recon(
                 x_in = (x_t - mean) / (std + 1e-6)
         x_in = jnp.array(x_in[None, ...], dtype=jnp.float32)
         if tokenizer_arch == "st":
-            tok = vq_encode_tokens(st_tokenizer_params, x_in)[0]
+            x_in_5d = x_in[:, None, ...]  # [B,1,H,W,C] for encode_video
+            tok = vq_encode_tokens(st_tokenizer_params, x_in_5d)[0, 0]
             x_rec = st_decode_tokens(st_tokenizer_model, st_tokenizer_params, tok[None, ...], (H, W))[0]
         else:
             x_rec, tok, _, _ = base_tokenizer_model.apply(
