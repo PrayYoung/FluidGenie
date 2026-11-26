@@ -1,0 +1,34 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>FluidGenie — Fluid Joystick</title>
+<style>body{background:#081724;color:#d9edf6;font:18px system-ui;margin:0;display:grid;place-items:center;min-height:100vh}main{width:min(720px,94vw)}h1{font-size:40px;margin-bottom:8px}p{color:#a5bdce}canvas{display:block;margin:auto;width:min(100%,60vh);image-rendering:pixelated;background:#06111d;border-radius:20px}button{background:#193b52;color:white;border:1px solid #4f819e;border-radius:10px;padding:12px 18px;font-size:17px;margin:4px}#status{min-height:24px}</style>
+<main><h1>Fluid Joystick</h1><p>Steer a learned fluid simulation with WASD or arrow keys. Space lets it flow.</p><label>View <select id="view"><option value="density">Smoke</option><option value="vorticity">Vorticity</option></select></label><canvas id="field" width="64" height="64"></canvas><div><button data-a="4">← Left</button><button data-a="1">↑ Up</button><button data-a="2">↓ Down</button><button data-a="3">→ Right</button><button data-a="0">Flow</button><button id="reset">Reset</button><button id="square">Draw a square</button></div><p id="status" aria-live="polite">Ready</p></main>
+<script>
+const canvas=document.querySelector('canvas'),ctx=canvas.getContext('2d'),status=document.querySelector('#status');
+let busy=false,lastData=null,squareRunning=false,sequence=0;
+function render(d){
+  let h=d.density.length,w=d.density[0].length,isVorticity=document.querySelector('#view').value==='vorticity';
+  canvas.width=w;canvas.height=h;let image=ctx.createImageData(w,h);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+    let i=((h-1-y)*w+x)*4;
+    if(isVorticity){let omega=Math.tanh(d.vorticity[y][x]*.25);image.data.set([30+225*Math.max(0,omega),35+80*(1-Math.abs(omega)),50+205*Math.max(0,-omega),255],i)}
+    else{let rho=Math.max(0,Math.min(1,d.density[y][x])),speed=Math.tanh(d.speed[y][x]*4);image.data.set([10+rho*225,25+rho*165+speed*50,45+rho*145+speed*65,255],i)}
+  }
+  ctx.putImageData(image,0,0);
+}
+async function update(path,action=0){
+  if(busy)return false;busy=true;status.textContent='Simulating…';
+  try{
+    let response=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action})}),data=await response.json();
+    if(data.error)throw Error(data.error);lastData=data;render(data);
+    status.textContent=`Step ${data.step} · ${['Flow','Up','Down','Right','Left'][action]}`;return true;
+  }catch(error){status.textContent=error.message;return false}finally{busy=false}
+}
+document.querySelector('#view').onchange=()=>{if(lastData)render(lastData)};
+document.querySelectorAll('[data-a]').forEach(button=>button.onclick=()=>{if(!squareRunning)update('/step',Number(button.dataset.a))});
+document.querySelector('#reset').onclick=async()=>{sequence++;squareRunning=false;while(busy)await new Promise(resolve=>setTimeout(resolve,20));await update('/reset')};
+document.querySelector('#square').onclick=async()=>{if(squareRunning||busy)return;squareRunning=true;let owner=++sequence;try{for(let action of [3,1,4,2])for(let k=0;k<8;k++){if(owner!==sequence)return;if(!await update('/step',action))return}}finally{if(owner===sequence)squareRunning=false}};
+document.onkeydown=event=>{
+  let action={w:1,ArrowUp:1,s:2,ArrowDown:2,d:3,ArrowRight:3,a:4,ArrowLeft:4,' ':0}[event.key.length===1?event.key.toLowerCase():event.key];
+  if(action!==undefined&&!squareRunning){event.preventDefault();update('/step',action)}
+};
+update('/reset');
+</script></html>

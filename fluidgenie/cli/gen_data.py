@@ -23,8 +23,8 @@ from pathlib import Path
 
 import tyro
 
-from configs.gen_data_configs import GenDataArgs, NS2DConfig
-from fluidgenie.data.gen_phiflow_ns2d import generate_dataset
+from configs.gen_data_configs import GenDataArgs
+from fluidgenie.data.gen_phiflow_ns2d import generate_dataset, config_from_args
 
 
 def main() -> None:
@@ -33,21 +33,7 @@ def main() -> None:
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    cfg = NS2DConfig(
-        seed=args.seed,
-        steps=args.steps,
-        dt=args.dt,
-        resolution=args.res,
-        viscosity=args.viscosity,
-        use_implicit_diffusion=args.implicit,
-        with_density=bool(args.density),
-        substeps=args.substeps,
-        save_every=args.save_every,
-        init_velocity_noise=args.noise,
-        forcing_strength=args.forcing_strength,
-        forcing_radius=args.forcing_radius,
-        density_radius=args.density_radius,
-    )
+    cfg = config_from_args(args)
 
     generate_dataset(
         out_dir=str(out_dir),

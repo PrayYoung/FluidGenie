@@ -19,7 +19,11 @@ from configs.eval_configs import EvalCodebookArgs
 def main() -> None:
     args = tyro.cli(EvalCodebookArgs)
 
-    files = sorted(glob.glob(os.path.join(args.data, "*.npy")))[: args.episodes]
+    files = sorted(
+        p
+        for p in glob.glob(os.path.join(args.data, "*.npy"))
+        if not p.endswith(".actions.npy")
+    )[: args.episodes]
     if not files:
         raise FileNotFoundError(f"No npy files found in {args.data}")
 
@@ -45,7 +49,9 @@ def main() -> None:
             training=False,
         )["params"]
     else:
-        vq_cfg = VQConfig(codebook_size=args.codebook, embed_dim=args.embed, hidden=args.hidden)
+        vq_cfg = VQConfig(
+            codebook_size=args.codebook, embed_dim=args.embed, hidden=args.hidden
+        )
         base_tokenizer_model = VQVAE(vq_cfg, in_channels=C)
         init_params = base_tokenizer_model.init(
             rng, jnp.zeros((1, H, W, C), dtype=jnp.float32)
@@ -82,7 +88,9 @@ def main() -> None:
         if args.tokenizer_arch == "st":
             tok = jax.vmap(
                 lambda f: st_tokenizer_model.apply(
-                    {"params": tokenizer_params}, f[None, ...], method=TokenizerSTVQVAE.encode_frame
+                    {"params": tokenizer_params},
+                    f[None, ...],
+                    method=TokenizerSTVQVAE.encode_frame,
                 )[0]
             )(x)
         else:

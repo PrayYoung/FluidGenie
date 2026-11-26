@@ -1,0 +1,62 @@
+[
+  {
+    "model": "cr_seed0",
+    "training_step": 3000,
+    "finite_checkpoint": true,
+    "optimizer_and_rng_restored": true
+  },
+  {
+    "model": "cr_seed1",
+    "training_step": 3000,
+    "finite_checkpoint": true,
+    "optimizer_and_rng_restored": true
+  },
+  {
+    "model": "cr_seed2",
+    "training_step": 3000,
+    "finite_checkpoint": true,
+    "optimizer_and_rng_restored": true
+  },
+  {
+    "model": "p2_seed0",
+    "training_step": 3000,
+    "finite_checkpoint": true,
+    "optimizer_and_rng_restored": true
+  },
+  {
+    "model": "p2_seed1",
+    "training_step": 3000,
+    "finite_checkpoint": true,
+    "optimizer_and_rng_restored": true
+  },
+  {
+    "model": "p2_seed2",
+    "training_step": 3000,
+    "finite_checkpoint": true,
+    "optimizer_and_rng_restored": true
+  },
+  {
+    "model": "fm_seed0",
+    "training_step": 15000,
+    "finite_checkpoint": true,
+    "optimizer_and_rng_restored": true
+  },
+  {
+    "model": "fm_seed1",
+    "training_step": 15000,
+    "finite_checkpoint": true,
+    "optimizer_and_rng_restored": true
+  },
+  {
+    "model": "fm_seed2",
+    "training_step": 15000,
+    "finite_checkpoint": true,
+    "optimizer_and_rng_restored": true
+  },
+  {
+    "model": "lam",
+    "configured_training_steps": 6000,
+    "finite_checkpoint": true,
+    "checkpoint_kind": "parameters only; no full optimizer state saved"
+  }
+]

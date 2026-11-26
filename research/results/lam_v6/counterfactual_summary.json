@@ -1,0 +1,1304 @@
+{
+  "protocol": {
+    "checkpoint": "outputs/lam_v6/action_fm/latest",
+    "stats": "data/lam_v5/joystick/train_stats.npz",
+    "out": "outputs/lam_v6/counterfactual",
+    "seed": 200003,
+    "horizon": 40,
+    "resolution": 0,
+    "burn_in": -1,
+    "ode_steps": 16,
+    "data": "data/lam_v5/joystick/train",
+    "seeds": [
+      200003,
+      200004,
+      200005,
+      200006,
+      200007
+    ]
+  },
+  "simulator_config": {
+    "seed": 200003,
+    "steps": 42,
+    "dt": 0.02,
+    "resolution": 64,
+    "viscosity": 0.002,
+    "use_implicit_diffusion": false,
+    "init_velocity_noise": 0.1,
+    "init_velocity_scale": 0.3,
+    "init_velocity_smoothness": 1.5,
+    "with_density": true,
+    "substeps": 8,
+    "save_every": 1,
+    "jit_step": true,
+    "forcing_strength": 0.25,
+    "forcing_radius": 0.3,
+    "forcing_smoothness": 2.0,
+    "linear_drag": 0.1,
+    "density_decay": 0.8,
+    "density_source_strength": 2.5,
+    "density_radius": 0.07,
+    "pressure_solver": "CG",
+    "pressure_rel_tol": 0.0001,
+    "pressure_abs_tol": 0.0001,
+    "pressure_max_iters": 200,
+    "burn_in": 1000,
+    "action_mode": "joystick5_localized",
+    "action_strength": 5.0,
+    "action_hold": 8,
+    "action_hold_min": 2,
+    "action_hold_max": 4,
+    "action_radius": 0.14,
+    "held_action_id": -1,
+    "action_start": 1
+  },
+  "same_initial_context": true,
+  "shared_prefix_max_abs_diff": 0.0,
+  "simulator_branch_protocol": "shared_state_v1",
+  "common_model_noise_seed": 12345,
+  "branches": [
+    {
+      "vorticity_correlation": 0.8924880470635321,
+      "tke_ratio": 1.1653528855974522,
+      "enstrophy_ratio": 1.1976857050771776,
+      "divergence_rms": 0.053644341496857886,
+      "spectrum_log10_error": 2.052071482582073,
+      "high_k_log10_bias": 3.5113200550466317,
+      "smoke_sharpness_ratio": 0.9973449807936463,
+      "mse_skill_vs_persistence": 0.180594391996107,
+      "vorticity_crossing_time_below_0_8": 3.52,
+      "vorticity_crossing_time_below_0_5": null,
+      "action": 0,
+      "name": "noop",
+      "mse": 0.024625437334179878,
+      "mean_velocity_final": [
+        -0.0011261641047894955,
+        0.0013022455386817455
+      ],
+      "simulator_mean_velocity_final": [
+        -0.00744963763281703,
+        0.0030171764083206654
+      ],
+      "velocity_delta_cosine": null,
+      "velocity_delta_cosine_localized": null,
+      "density_correlation": 0.6933066248893738
+    },
+    {
+      "vorticity_correlation": 0.9737050223319791,
+      "tke_ratio": 0.98096413176553,
+      "enstrophy_ratio": 1.0114055357202754,
+      "divergence_rms": 0.06797605559601909,
+      "spectrum_log10_error": 1.8611061880883413,
+      "high_k_log10_bias": 3.259040260227638,
+      "smoke_sharpness_ratio": 1.0306687279020859,
+      "mse_skill_vs_persistence": 0.9450022656150983,
+      "vorticity_crossing_time_below_0_8": null,
+      "vorticity_crossing_time_below_0_5": null,
+      "action": 1,
+      "name": "up",
+      "mse": 0.011338649317622185,
+      "mean_velocity_final": [
+        0.004350659903138876,
+        0.0051236506551504135
+      ],
+      "simulator_mean_velocity_final": [
+        -0.01243162527680397,
+        0.0027555981650948524
+      ],
+      "velocity_delta_cosine": 0.9620447754859924,
+      "velocity_delta_cosine_localized": 0.9780637118661115,
+      "density_correlation": 0.9372000098228455
+    },
+    {
+      "vorticity_correlation": 0.8938201261325398,
+      "tke_ratio": 1.0137324523445888,
+      "enstrophy_ratio": 0.985341941699518,
+      "divergence_rms": 0.07747498261913358,
+      "spectrum_log10_error": 1.8808182448189434,
+      "high_k_log10_bias": 3.3242413928089944,
+      "smoke_sharpness_ratio": 1.0856179252689047,
+      "mse_skill_vs_persistence": 0.88561019578645,
+      "vorticity_crossing_time_below_0_8": 4.96,
+      "vorticity_crossing_time_below_0_5": null,
+      "action": 2,
+      "name": "down",
+      "mse": 0.06763304769992828,
+      "mean_velocity_final": [
+        0.001528501627035439,
+        0.0004560376692097634
+      ],
+      "simulator_mean_velocity_final": [
+        0.0013772875536233187,
+        0.0024736321065574884
+      ],
+      "velocity_delta_cosine": 0.8393770456314087,
+      "velocity_delta_cosine_localized": 0.8973883379440367,
+      "density_correlation": 0.7749497890472412
+    },
+    {
+      "vorticity_correlation": 0.8796580830837915,
+      "tke_ratio": 0.8664636523534369,
+      "enstrophy_ratio": 0.939213246336634,
+      "divergence_rms": 0.07127936191765932,
+      "spectrum_log10_error": 1.8619212916320975,
+      "high_k_log10_bias": 3.294241733529426,
+      "smoke_sharpness_ratio": 0.5517357637334157,
+      "mse_skill_vs_persistence": 0.7024116043349737,
+      "vorticity_crossing_time_below_0_8": 3.2,
+      "vorticity_crossing_time_below_0_5": null,
+      "action": 3,
+      "name": "right",
+      "mse": 0.08629419654607773,
+      "mean_velocity_final": [
+        0.0020191657822579145,
+        0.00029229253414087
+      ],
+      "simulator_mean_velocity_final": [
+        0.0012079908046871424,
+        0.007995355874300003
+      ],
+      "velocity_delta_cosine": 0.8871484994888306,
+      "velocity_delta_cosine_localized": 0.9121541631376052,
+      "density_correlation": 0.5984909534454346
+    },
+    {
+      "vorticity_correlation": 0.8111703504938406,
+      "tke_ratio": 0.8647725424844342,
+      "enstrophy_ratio": 0.8966251715242926,
+      "divergence_rms": 0.0679415681057465,
+      "spectrum_log10_error": 1.8346808323874992,
+      "high_k_log10_bias": 3.2109417250775167,
+      "smoke_sharpness_ratio": 0.4391423661917182,
+      "mse_skill_vs_persistence": 0.8154711007919001,
+      "vorticity_crossing_time_below_0_8": 3.68,
+      "vorticity_crossing_time_below_0_5": null,
+      "action": 4,
+      "name": "left",
+      "mse": 0.1661369502544403,
+      "mean_velocity_final": [
+        0.0033658170141279697,
+        0.00027913236408494413
+      ],
+      "simulator_mean_velocity_final": [
+        -0.006369450595229864,
+        0.0019241253612563014
+      ],
+      "velocity_delta_cosine": 0.748786211013794,
+      "velocity_delta_cosine_localized": 0.8200129097721452,
+      "density_correlation": 0.6525319218635559
+    }
+  ],
+  "branch_mse_from_noop": [
+    0.0,
+    0.3312188982963562,
+    0.3545272648334503,
+    0.420368492603302,
+    0.3398208022117615
+  ],
+  "simulator_branch_mse_from_noop": [
+    0.0,
+    0.2717236876487732,
+    0.36456236243247986,
+    0.4383610188961029,
+    0.49635419249534607
+  ],
+  "interpretation": "Branch separation alone is not correct control; compare simulator response direction and physical metrics.",
+  "evaluation_seeds": [
+    200003,
+    200004,
+    200005,
+    200006,
+    200007
+  ],
+  "episodes": [
+    {
+      "protocol": {
+        "checkpoint": "outputs/lam_v6/action_fm/latest",
+        "stats": "data/lam_v5/joystick/train_stats.npz",
+        "out": "outputs/lam_v6/counterfactual",
+        "seed": 200003,
+        "horizon": 40,
+        "resolution": 0,
+        "burn_in": -1,
+        "ode_steps": 16,
+        "data": "data/lam_v5/joystick/train",
+        "seeds": [
+          200003,
+          200004,
+          200005,
+          200006,
+          200007
+        ]
+      },
+      "simulator_config": {
+        "seed": 200003,
+        "steps": 42,
+        "dt": 0.02,
+        "resolution": 64,
+        "viscosity": 0.002,
+        "use_implicit_diffusion": false,
+        "init_velocity_noise": 0.1,
+        "init_velocity_scale": 0.3,
+        "init_velocity_smoothness": 1.5,
+        "with_density": true,
+        "substeps": 8,
+        "save_every": 1,
+        "jit_step": true,
+        "forcing_strength": 0.25,
+        "forcing_radius": 0.3,
+        "forcing_smoothness": 2.0,
+        "linear_drag": 0.1,
+        "density_decay": 0.8,
+        "density_source_strength": 2.5,
+        "density_radius": 0.07,
+        "pressure_solver": "CG",
+        "pressure_rel_tol": 0.0001,
+        "pressure_abs_tol": 0.0001,
+        "pressure_max_iters": 200,
+        "burn_in": 1000,
+        "action_mode": "joystick5_localized",
+        "action_strength": 5.0,
+        "action_hold": 8,
+        "action_hold_min": 2,
+        "action_hold_max": 4,
+        "action_radius": 0.14,
+        "held_action_id": -1,
+        "action_start": 1
+      },
+      "same_initial_context": true,
+      "shared_prefix_max_abs_diff": 0.0,
+      "simulator_branch_protocol": "shared_state_v1",
+      "common_model_noise_seed": 12345,
+      "branches": [
+        {
+          "vorticity_correlation": 0.8924880470635321,
+          "tke_ratio": 1.1653528855974522,
+          "enstrophy_ratio": 1.1976857050771776,
+          "divergence_rms": 0.053644341496857886,
+          "spectrum_log10_error": 2.052071482582073,
+          "high_k_log10_bias": 3.5113200550466317,
+          "smoke_sharpness_ratio": 0.9973449807936463,
+          "mse_skill_vs_persistence": 0.180594391996107,
+          "vorticity_crossing_time_below_0_8": 3.52,
+          "vorticity_crossing_time_below_0_5": null,
+          "action": 0,
+          "name": "noop",
+          "mse": 0.024625437334179878,
+          "mean_velocity_final": [
+            -0.0011261641047894955,
+            0.0013022455386817455
+          ],
+          "simulator_mean_velocity_final": [
+            -0.00744963763281703,
+            0.0030171764083206654
+          ],
+          "velocity_delta_cosine": null,
+          "velocity_delta_cosine_localized": null,
+          "density_correlation": 0.6933066248893738
+        },
+        {
+          "vorticity_correlation": 0.9737050223319791,
+          "tke_ratio": 0.98096413176553,
+          "enstrophy_ratio": 1.0114055357202754,
+          "divergence_rms": 0.06797605559601909,
+          "spectrum_log10_error": 1.8611061880883413,
+          "high_k_log10_bias": 3.259040260227638,
+          "smoke_sharpness_ratio": 1.0306687279020859,
+          "mse_skill_vs_persistence": 0.9450022656150983,
+          "vorticity_crossing_time_below_0_8": null,
+          "vorticity_crossing_time_below_0_5": null,
+          "action": 1,
+          "name": "up",
+          "mse": 0.011338649317622185,
+          "mean_velocity_final": [
+            0.004350659903138876,
+            0.0051236506551504135
+          ],
+          "simulator_mean_velocity_final": [
+            -0.01243162527680397,
+            0.0027555981650948524
+          ],
+          "velocity_delta_cosine": 0.9620447754859924,
+          "velocity_delta_cosine_localized": 0.9780637118661115,
+          "density_correlation": 0.9372000098228455
+        },
+        {
+          "vorticity_correlation": 0.8938201261325398,
+          "tke_ratio": 1.0137324523445888,
+          "enstrophy_ratio": 0.985341941699518,
+          "divergence_rms": 0.07747498261913358,
+          "spectrum_log10_error": 1.8808182448189434,
+          "high_k_log10_bias": 3.3242413928089944,
+          "smoke_sharpness_ratio": 1.0856179252689047,
+          "mse_skill_vs_persistence": 0.88561019578645,
+          "vorticity_crossing_time_below_0_8": 4.96,
+          "vorticity_crossing_time_below_0_5": null,
+          "action": 2,
+          "name": "down",
+          "mse": 0.06763304769992828,
+          "mean_velocity_final": [
+            0.001528501627035439,
+            0.0004560376692097634
+          ],
+          "simulator_mean_velocity_final": [
+            0.0013772875536233187,
+            0.0024736321065574884
+          ],
+          "velocity_delta_cosine": 0.8393770456314087,
+          "velocity_delta_cosine_localized": 0.8973883379440367,
+          "density_correlation": 0.7749497890472412
+        },
+        {
+          "vorticity_correlation": 0.8796580830837915,
+          "tke_ratio": 0.8664636523534369,
+          "enstrophy_ratio": 0.939213246336634,
+          "divergence_rms": 0.07127936191765932,
+          "spectrum_log10_error": 1.8619212916320975,
+          "high_k_log10_bias": 3.294241733529426,
+          "smoke_sharpness_ratio": 0.5517357637334157,
+          "mse_skill_vs_persistence": 0.7024116043349737,
+          "vorticity_crossing_time_below_0_8": 3.2,
+          "vorticity_crossing_time_below_0_5": null,
+          "action": 3,
+          "name": "right",
+          "mse": 0.08629419654607773,
+          "mean_velocity_final": [
+            0.0020191657822579145,
+            0.00029229253414087
+          ],
+          "simulator_mean_velocity_final": [
+            0.0012079908046871424,
+            0.007995355874300003
+          ],
+          "velocity_delta_cosine": 0.8871484994888306,
+          "velocity_delta_cosine_localized": 0.9121541631376052,
+          "density_correlation": 0.5984909534454346
+        },
+        {
+          "vorticity_correlation": 0.8111703504938406,
+          "tke_ratio": 0.8647725424844342,
+          "enstrophy_ratio": 0.8966251715242926,
+          "divergence_rms": 0.0679415681057465,
+          "spectrum_log10_error": 1.8346808323874992,
+          "high_k_log10_bias": 3.2109417250775167,
+          "smoke_sharpness_ratio": 0.4391423661917182,
+          "mse_skill_vs_persistence": 0.8154711007919001,
+          "vorticity_crossing_time_below_0_8": 3.68,
+          "vorticity_crossing_time_below_0_5": null,
+          "action": 4,
+          "name": "left",
+          "mse": 0.1661369502544403,
+          "mean_velocity_final": [
+            0.0033658170141279697,
+            0.00027913236408494413
+          ],
+          "simulator_mean_velocity_final": [
+            -0.006369450595229864,
+            0.0019241253612563014
+          ],
+          "velocity_delta_cosine": 0.748786211013794,
+          "velocity_delta_cosine_localized": 0.8200129097721452,
+          "density_correlation": 0.6525319218635559
+        }
+      ],
+      "branch_mse_from_noop": [
+        0.0,
+        0.3312188982963562,
+        0.3545272648334503,
+        0.420368492603302,
+        0.3398208022117615
+      ],
+      "simulator_branch_mse_from_noop": [
+        0.0,
+        0.2717236876487732,
+        0.36456236243247986,
+        0.4383610188961029,
+        0.49635419249534607
+      ],
+      "interpretation": "Branch separation alone is not correct control; compare simulator response direction and physical metrics."
+    },
+    {
+      "protocol": {
+        "checkpoint": "outputs/lam_v6/action_fm/latest",
+        "stats": "data/lam_v5/joystick/train_stats.npz",
+        "out": "outputs/lam_v6/counterfactual/seed_200004",
+        "seed": 200004,
+        "horizon": 40,
+        "resolution": 0,
+        "burn_in": -1,
+        "ode_steps": 16,
+        "data": "data/lam_v5/joystick/train",
+        "seeds": [
+          200003,
+          200004,
+          200005,
+          200006,
+          200007
+        ]
+      },
+      "simulator_config": {
+        "seed": 200004,
+        "steps": 42,
+        "dt": 0.02,
+        "resolution": 64,
+        "viscosity": 0.002,
+        "use_implicit_diffusion": false,
+        "init_velocity_noise": 0.1,
+        "init_velocity_scale": 0.3,
+        "init_velocity_smoothness": 1.5,
+        "with_density": true,
+        "substeps": 8,
+        "save_every": 1,
+        "jit_step": true,
+        "forcing_strength": 0.25,
+        "forcing_radius": 0.3,
+        "forcing_smoothness": 2.0,
+        "linear_drag": 0.1,
+        "density_decay": 0.8,
+        "density_source_strength": 2.5,
+        "density_radius": 0.07,
+        "pressure_solver": "CG",
+        "pressure_rel_tol": 0.0001,
+        "pressure_abs_tol": 0.0001,
+        "pressure_max_iters": 200,
+        "burn_in": 1000,
+        "action_mode": "joystick5_localized",
+        "action_strength": 5.0,
+        "action_hold": 8,
+        "action_hold_min": 2,
+        "action_hold_max": 4,
+        "action_radius": 0.14,
+        "held_action_id": -1,
+        "action_start": 1
+      },
+      "same_initial_context": true,
+      "shared_prefix_max_abs_diff": 0.0,
+      "simulator_branch_protocol": "shared_state_v1",
+      "common_model_noise_seed": 12345,
+      "branches": [
+        {
+          "vorticity_correlation": 0.931849226539762,
+          "tke_ratio": 1.3561284450766946,
+          "enstrophy_ratio": 1.4062246513676537,
+          "divergence_rms": 0.06724304592344112,
+          "spectrum_log10_error": 2.437890124010837,
+          "high_k_log10_bias": 3.913723728136502,
+          "smoke_sharpness_ratio": 0.4827282588750548,
+          "mse_skill_vs_persistence": -3.0497658568934285,
+          "vorticity_crossing_time_below_0_8": null,
+          "vorticity_crossing_time_below_0_5": null,
+          "action": 0,
+          "name": "noop",
+          "mse": 0.016293838620185852,
+          "mean_velocity_final": [
+            0.00034413885441608727,
+            0.00021954144176561385
+          ],
+          "simulator_mean_velocity_final": [
+            0.0009975922293961048,
+            -0.0006889345240779221
+          ],
+          "velocity_delta_cosine": null,
+          "velocity_delta_cosine_localized": null,
+          "density_correlation": 0.6553533673286438
+        },
+        {
+          "vorticity_correlation": 0.9705581967412094,
+          "tke_ratio": 0.9054978768119677,
+          "enstrophy_ratio": 0.9177264391695538,
+          "divergence_rms": 0.072649217158918,
+          "spectrum_log10_error": 1.957425983382739,
+          "high_k_log10_bias": 3.388112335421904,
+          "smoke_sharpness_ratio": 1.0304622192381763,
+          "mse_skill_vs_persistence": 0.9509264938756774,
+          "vorticity_crossing_time_below_0_8": null,
+          "vorticity_crossing_time_below_0_5": null,
+          "action": 1,
+          "name": "up",
+          "mse": 0.016606619581580162,
+          "mean_velocity_final": [
+            0.006983913481235504,
+            0.010660246014595032
+          ],
+          "simulator_mean_velocity_final": [
+            -0.008804310113191605,
+            0.0023719980381429195
+          ],
+          "velocity_delta_cosine": 0.9548475742340088,
+          "velocity_delta_cosine_localized": 0.9601496598311346,
+          "density_correlation": 0.9098561406135559
+        },
+        {
+          "vorticity_correlation": 0.7628028662318015,
+          "tke_ratio": 0.8233364969984546,
+          "enstrophy_ratio": 0.8398827617197636,
+          "divergence_rms": 0.0722110587145361,
+          "spectrum_log10_error": 2.0182417850105083,
+          "high_k_log10_bias": 3.41137124841131,
+          "smoke_sharpness_ratio": 0.5590508023908913,
+          "mse_skill_vs_persistence": 0.6822151296587027,
+          "vorticity_crossing_time_below_0_8": 4.32,
+          "vorticity_crossing_time_below_0_5": 5.12,
+          "action": 2,
+          "name": "down",
+          "mse": 0.23344357311725616,
+          "mean_velocity_final": [
+            0.000580961350351572,
+            0.0002695796138141304
+          ],
+          "simulator_mean_velocity_final": [
+            0.00981084629893303,
+            -0.0070331203751266
+          ],
+          "velocity_delta_cosine": 0.6753681898117065,
+          "velocity_delta_cosine_localized": 0.6971588343293182,
+          "density_correlation": 0.7034385204315186
+        },
+        {
+          "vorticity_correlation": 0.8440494988425691,
+          "tke_ratio": 0.7804510913397611,
+          "enstrophy_ratio": 0.8077071283404272,
+          "divergence_rms": 0.06596997702237917,
+          "spectrum_log10_error": 1.9009140009564327,
+          "high_k_log10_bias": 3.333713551229111,
+          "smoke_sharpness_ratio": 0.5094867024762924,
+          "mse_skill_vs_persistence": 0.7459794833434147,
+          "vorticity_crossing_time_below_0_8": 4.48,
+          "vorticity_crossing_time_below_0_5": null,
+          "action": 3,
+          "name": "right",
+          "mse": 0.17000286281108856,
+          "mean_velocity_final": [
+            0.002785736694931984,
+            -0.002526424126699567
+          ],
+          "simulator_mean_velocity_final": [
+            0.009254048578441143,
+            -0.002319933846592903
+          ],
+          "velocity_delta_cosine": 0.8205970525741577,
+          "velocity_delta_cosine_localized": 0.8484849155703397,
+          "density_correlation": 0.6722617149353027
+        },
+        {
+          "vorticity_correlation": 0.9084468589884729,
+          "tke_ratio": 0.9369773250232086,
+          "enstrophy_ratio": 0.9673541548289025,
+          "divergence_rms": 0.06756774080828805,
+          "spectrum_log10_error": 1.946865155067734,
+          "high_k_log10_bias": 3.3981988421055602,
+          "smoke_sharpness_ratio": 0.6282977668954717,
+          "mse_skill_vs_persistence": 0.9094268348639432,
+          "vorticity_crossing_time_below_0_8": 6.4,
+          "vorticity_crossing_time_below_0_5": null,
+          "action": 4,
+          "name": "left",
+          "mse": 0.06088224798440933,
+          "mean_velocity_final": [
+            0.0008061419939622283,
+            0.0013227383606135845
+          ],
+          "simulator_mean_velocity_final": [
+            -0.010448750108480453,
+            0.003660597838461399
+          ],
+          "velocity_delta_cosine": 0.9231923222541809,
+          "velocity_delta_cosine_localized": 0.9385003942134441,
+          "density_correlation": 0.7847656011581421
+        }
+      ],
+      "branch_mse_from_noop": [
+        0.0,
+        0.3694729804992676,
+        0.3533816635608673,
+        0.3450012803077698,
+        0.33187025785446167
+      ],
+      "simulator_branch_mse_from_noop": [
+        0.0,
+        0.3165341019630432,
+        0.47242698073387146,
+        0.47519224882125854,
+        0.4008934795856476
+      ],
+      "interpretation": "Branch separation alone is not correct control; compare simulator response direction and physical metrics."
+    },
+    {
+      "protocol": {
+        "checkpoint": "outputs/lam_v6/action_fm/latest",
+        "stats": "data/lam_v5/joystick/train_stats.npz",
+        "out": "outputs/lam_v6/counterfactual/seed_200005",
+        "seed": 200005,
+        "horizon": 40,
+        "resolution": 0,
+        "burn_in": -1,
+        "ode_steps": 16,
+        "data": "data/lam_v5/joystick/train",
+        "seeds": [
+          200003,
+          200004,
+          200005,
+          200006,
+          200007
+        ]
+      },
+      "simulator_config": {
+        "seed": 200005,
+        "steps": 42,
+        "dt": 0.02,
+        "resolution": 64,
+        "viscosity": 0.002,
+        "use_implicit_diffusion": false,
+        "init_velocity_noise": 0.1,
+        "init_velocity_scale": 0.3,
+        "init_velocity_smoothness": 1.5,
+        "with_density": true,
+        "substeps": 8,
+        "save_every": 1,
+        "jit_step": true,
+        "forcing_strength": 0.25,
+        "forcing_radius": 0.3,
+        "forcing_smoothness": 2.0,
+        "linear_drag": 0.1,
+        "density_decay": 0.8,
+        "density_source_strength": 2.5,
+        "density_radius": 0.07,
+        "pressure_solver": "CG",
+        "pressure_rel_tol": 0.0001,
+        "pressure_abs_tol": 0.0001,
+        "pressure_max_iters": 200,
+        "burn_in": 1000,
+        "action_mode": "joystick5_localized",
+        "action_strength": 5.0,
+        "action_hold": 8,
+        "action_hold_min": 2,
+        "action_hold_max": 4,
+        "action_radius": 0.14,
+        "held_action_id": -1,
+        "action_start": 1
+      },
+      "same_initial_context": true,
+      "shared_prefix_max_abs_diff": 0.0,
+      "simulator_branch_protocol": "shared_state_v1",
+      "common_model_noise_seed": 12345,
+      "branches": [
+        {
+          "vorticity_correlation": 0.8563706192302281,
+          "tke_ratio": 1.3724189319614009,
+          "enstrophy_ratio": 1.2447034664577932,
+          "divergence_rms": 0.09847812380418478,
+          "spectrum_log10_error": 2.7631213924767657,
+          "high_k_log10_bias": 4.327355680021495,
+          "smoke_sharpness_ratio": 0.6299573206732012,
+          "mse_skill_vs_persistence": -198.6347904563723,
+          "vorticity_crossing_time_below_0_8": 4.0,
+          "vorticity_crossing_time_below_0_5": null,
+          "action": 0,
+          "name": "noop",
+          "mse": 0.01891906000673771,
+          "mean_velocity_final": [
+            0.002190058585256338,
+            0.003796457313001156
+          ],
+          "simulator_mean_velocity_final": [
+            -0.011057136580348015,
+            -4.416864976519719e-05
+          ],
+          "velocity_delta_cosine": null,
+          "velocity_delta_cosine_localized": null,
+          "density_correlation": 0.7108714580535889
+        },
+        {
+          "vorticity_correlation": 0.7446326365307725,
+          "tke_ratio": 0.8793145931140206,
+          "enstrophy_ratio": 0.9290799842543439,
+          "divergence_rms": 0.09471986541315465,
+          "spectrum_log10_error": 2.0181636607241216,
+          "high_k_log10_bias": 3.4358246823073557,
+          "smoke_sharpness_ratio": 0.6047585101562198,
+          "mse_skill_vs_persistence": 0.6259232946316468,
+          "vorticity_crossing_time_below_0_8": 3.04,
+          "vorticity_crossing_time_below_0_5": 5.76,
+          "action": 1,
+          "name": "up",
+          "mse": 0.20412160456180573,
+          "mean_velocity_final": [
+            0.002393599832430482,
+            -0.002693950431421399
+          ],
+          "simulator_mean_velocity_final": [
+            0.0011006915010511875,
+            0.014178371988236904
+          ],
+          "velocity_delta_cosine": 0.6954274773597717,
+          "velocity_delta_cosine_localized": 0.7217831012446656,
+          "density_correlation": 0.6939166188240051
+        },
+        {
+          "vorticity_correlation": 0.6530469818304965,
+          "tke_ratio": 0.7681263789209567,
+          "enstrophy_ratio": 0.776924162443603,
+          "divergence_rms": 0.07885332138012532,
+          "spectrum_log10_error": 2.07922137081463,
+          "high_k_log10_bias": 3.5330335784777867,
+          "smoke_sharpness_ratio": 0.2560250219105818,
+          "mse_skill_vs_persistence": 0.47535636972139345,
+          "vorticity_crossing_time_below_0_8": 3.36,
+          "vorticity_crossing_time_below_0_5": 4.0,
+          "action": 2,
+          "name": "down",
+          "mse": 0.3615458309650421,
+          "mean_velocity_final": [
+            0.004840369336307049,
+            0.00028559763450175524
+          ],
+          "simulator_mean_velocity_final": [
+            -0.008479049429297447,
+            -0.021972492337226868
+          ],
+          "velocity_delta_cosine": 0.5669472217559814,
+          "velocity_delta_cosine_localized": 0.6276491786709757,
+          "density_correlation": 0.6758125424385071
+        },
+        {
+          "vorticity_correlation": 0.7575596121862965,
+          "tke_ratio": 0.9931899435152308,
+          "enstrophy_ratio": 1.0291683199126935,
+          "divergence_rms": 0.07777191475741749,
+          "spectrum_log10_error": 2.0092562528647684,
+          "high_k_log10_bias": 3.471994015306926,
+          "smoke_sharpness_ratio": 0.8933246219730873,
+          "mse_skill_vs_persistence": 0.5961001398474174,
+          "vorticity_crossing_time_below_0_8": 4.0,
+          "vorticity_crossing_time_below_0_5": 5.12,
+          "action": 3,
+          "name": "right",
+          "mse": 0.19404318928718567,
+          "mean_velocity_final": [
+            0.004331586416810751,
+            -0.0005438993684947491
+          ],
+          "simulator_mean_velocity_final": [
+            -0.004428163170814514,
+            0.011512926779687405
+          ],
+          "velocity_delta_cosine": 0.7315529584884644,
+          "velocity_delta_cosine_localized": 0.8472021330907714,
+          "density_correlation": 0.691950261592865
+        },
+        {
+          "vorticity_correlation": 0.5387035452974376,
+          "tke_ratio": 0.7692563883005126,
+          "enstrophy_ratio": 0.7778007847354086,
+          "divergence_rms": 0.07548933459003121,
+          "spectrum_log10_error": 1.9246756890337076,
+          "high_k_log10_bias": 3.327401902367966,
+          "smoke_sharpness_ratio": 0.4864657499030365,
+          "mse_skill_vs_persistence": 0.2645047903165866,
+          "vorticity_crossing_time_below_0_8": 3.04,
+          "vorticity_crossing_time_below_0_5": 3.68,
+          "action": 4,
+          "name": "left",
+          "mse": 0.4393308758735657,
+          "mean_velocity_final": [
+            0.003157529514282942,
+            0.0015317571815103292
+          ],
+          "simulator_mean_velocity_final": [
+            -0.00986581388860941,
+            -0.00020150429918430746
+          ],
+          "velocity_delta_cosine": 0.4507533609867096,
+          "velocity_delta_cosine_localized": 0.6115934042260124,
+          "density_correlation": 0.6706023812294006
+        }
+      ],
+      "branch_mse_from_noop": [
+        0.0,
+        0.43944624066352844,
+        0.2635440528392792,
+        0.456847608089447,
+        0.318167507648468
+      ],
+      "simulator_branch_mse_from_noop": [
+        0.0,
+        0.41470637917518616,
+        0.4795967638492584,
+        0.3866206705570221,
+        0.4899207651615143
+      ],
+      "interpretation": "Branch separation alone is not correct control; compare simulator response direction and physical metrics."
+    },
+    {
+      "protocol": {
+        "checkpoint": "outputs/lam_v6/action_fm/latest",
+        "stats": "data/lam_v5/joystick/train_stats.npz",
+        "out": "outputs/lam_v6/counterfactual/seed_200006",
+        "seed": 200006,
+        "horizon": 40,
+        "resolution": 0,
+        "burn_in": -1,
+        "ode_steps": 16,
+        "data": "data/lam_v5/joystick/train",
+        "seeds": [
+          200003,
+          200004,
+          200005,
+          200006,
+          200007
+        ]
+      },
+      "simulator_config": {
+        "seed": 200006,
+        "steps": 42,
+        "dt": 0.02,
+        "resolution": 64,
+        "viscosity": 0.002,
+        "use_implicit_diffusion": false,
+        "init_velocity_noise": 0.1,
+        "init_velocity_scale": 0.3,
+        "init_velocity_smoothness": 1.5,
+        "with_density": true,
+        "substeps": 8,
+        "save_every": 1,
+        "jit_step": true,
+        "forcing_strength": 0.25,
+        "forcing_radius": 0.3,
+        "forcing_smoothness": 2.0,
+        "linear_drag": 0.1,
+        "density_decay": 0.8,
+        "density_source_strength": 2.5,
+        "density_radius": 0.07,
+        "pressure_solver": "CG",
+        "pressure_rel_tol": 0.0001,
+        "pressure_abs_tol": 0.0001,
+        "pressure_max_iters": 200,
+        "burn_in": 1000,
+        "action_mode": "joystick5_localized",
+        "action_strength": 5.0,
+        "action_hold": 8,
+        "action_hold_min": 2,
+        "action_hold_max": 4,
+        "action_radius": 0.14,
+        "held_action_id": -1,
+        "action_start": 1
+      },
+      "same_initial_context": true,
+      "shared_prefix_max_abs_diff": 0.0,
+      "simulator_branch_protocol": "shared_state_v1",
+      "common_model_noise_seed": 12345,
+      "branches": [
+        {
+          "vorticity_correlation": 0.7798999746711047,
+          "tke_ratio": 1.5313767714942486,
+          "enstrophy_ratio": 1.4425000790872866,
+          "divergence_rms": 0.06251832050500308,
+          "spectrum_log10_error": 2.2748310242461884,
+          "high_k_log10_bias": 3.7208424975062036,
+          "smoke_sharpness_ratio": 1.619955541962525,
+          "mse_skill_vs_persistence": -363.65255345103407,
+          "vorticity_crossing_time_below_0_8": 3.04,
+          "vorticity_crossing_time_below_0_5": null,
+          "action": 0,
+          "name": "noop",
+          "mse": 0.024784518405795097,
+          "mean_velocity_final": [
+            -0.0012583612697198987,
+            0.0025994277093559504
+          ],
+          "simulator_mean_velocity_final": [
+            0.001256506540812552,
+            0.004410699009895325
+          ],
+          "velocity_delta_cosine": null,
+          "velocity_delta_cosine_localized": null,
+          "density_correlation": 0.6788325309753418
+        },
+        {
+          "vorticity_correlation": 0.9164411664648051,
+          "tke_ratio": 0.8158078147598211,
+          "enstrophy_ratio": 0.8732781717602789,
+          "divergence_rms": 0.06609691036665526,
+          "spectrum_log10_error": 2.0378374951167926,
+          "high_k_log10_bias": 3.4682546234941283,
+          "smoke_sharpness_ratio": 0.9003541680654511,
+          "mse_skill_vs_persistence": 0.903951953168435,
+          "vorticity_crossing_time_below_0_8": 5.6000000000000005,
+          "vorticity_crossing_time_below_0_5": null,
+          "action": 1,
+          "name": "up",
+          "mse": 0.06371351331472397,
+          "mean_velocity_final": [
+            0.0021894238889217377,
+            0.004534156061708927
+          ],
+          "simulator_mean_velocity_final": [
+            -0.005692536011338234,
+            0.007077421061694622
+          ],
+          "velocity_delta_cosine": 0.8966234922409058,
+          "velocity_delta_cosine_localized": 0.9589600630299913,
+          "density_correlation": 0.812059760093689
+        },
+        {
+          "vorticity_correlation": 0.818471033947209,
+          "tke_ratio": 0.8027348898584584,
+          "enstrophy_ratio": 0.8326785688056422,
+          "divergence_rms": 0.09281474587302155,
+          "spectrum_log10_error": 1.9382134832661222,
+          "high_k_log10_bias": 3.393193416041138,
+          "smoke_sharpness_ratio": 0.5402144835024587,
+          "mse_skill_vs_persistence": 0.6924544106348044,
+          "vorticity_crossing_time_below_0_8": 4.96,
+          "vorticity_crossing_time_below_0_5": 5.6000000000000005,
+          "action": 2,
+          "name": "down",
+          "mse": 0.18221242725849152,
+          "mean_velocity_final": [
+            0.0024986243806779385,
+            0.000538678839802742
+          ],
+          "simulator_mean_velocity_final": [
+            -0.005654963664710522,
+            -0.005292590241879225
+          ],
+          "velocity_delta_cosine": 0.7841353416442871,
+          "velocity_delta_cosine_localized": 0.8091068557860043,
+          "density_correlation": 0.6651881337165833
+        },
+        {
+          "vorticity_correlation": 0.8971427248999564,
+          "tke_ratio": 0.9217260555158932,
+          "enstrophy_ratio": 0.9375804977847408,
+          "divergence_rms": 0.07247434670157811,
+          "spectrum_log10_error": 2.0470832044606624,
+          "high_k_log10_bias": 3.524541328582548,
+          "smoke_sharpness_ratio": 0.6942197434135604,
+          "mse_skill_vs_persistence": 0.8297390493827026,
+          "vorticity_crossing_time_below_0_8": 4.96,
+          "vorticity_crossing_time_below_0_5": null,
+          "action": 3,
+          "name": "right",
+          "mse": 0.0995711162686348,
+          "mean_velocity_final": [
+            0.005605693906545639,
+            9.306745050707832e-05
+          ],
+          "simulator_mean_velocity_final": [
+            -0.0004525200347416103,
+            0.00830518826842308
+          ],
+          "velocity_delta_cosine": 0.8855301737785339,
+          "velocity_delta_cosine_localized": 0.9265215521870886,
+          "density_correlation": 0.7853614687919617
+        },
+        {
+          "vorticity_correlation": 0.9369331144784205,
+          "tke_ratio": 0.899320340134268,
+          "enstrophy_ratio": 0.9453519455458949,
+          "divergence_rms": 0.06362101135165903,
+          "spectrum_log10_error": 1.8206724470756506,
+          "high_k_log10_bias": 3.1624858476876994,
+          "smoke_sharpness_ratio": 0.5542373989710654,
+          "mse_skill_vs_persistence": 0.9113620314494313,
+          "vorticity_crossing_time_below_0_8": null,
+          "vorticity_crossing_time_below_0_5": null,
+          "action": 4,
+          "name": "left",
+          "mse": 0.03947783261537552,
+          "mean_velocity_final": [
+            0.002782695461064577,
+            -0.0010753872338682413
+          ],
+          "simulator_mean_velocity_final": [
+            0.0008822002564556897,
+            -0.007211429066956043
+          ],
+          "velocity_delta_cosine": 0.9231061339378357,
+          "velocity_delta_cosine_localized": 0.9455273684178355,
+          "density_correlation": 0.8142387270927429
+        }
+      ],
+      "branch_mse_from_noop": [
+        0.0,
+        0.3139425814151764,
+        0.37915509939193726,
+        0.41121190786361694,
+        0.23604415357112885
+      ],
+      "simulator_branch_mse_from_noop": [
+        0.0,
+        0.46069207787513733,
+        0.39734068512916565,
+        0.43846428394317627,
+        0.3338042199611664
+      ],
+      "interpretation": "Branch separation alone is not correct control; compare simulator response direction and physical metrics."
+    },
+    {
+      "protocol": {
+        "checkpoint": "outputs/lam_v6/action_fm/latest",
+        "stats": "data/lam_v5/joystick/train_stats.npz",
+        "out": "outputs/lam_v6/counterfactual/seed_200007",
+        "seed": 200007,
+        "horizon": 40,
+        "resolution": 0,
+        "burn_in": -1,
+        "ode_steps": 16,
+        "data": "data/lam_v5/joystick/train",
+        "seeds": [
+          200003,
+          200004,
+          200005,
+          200006,
+          200007
+        ]
+      },
+      "simulator_config": {
+        "seed": 200007,
+        "steps": 42,
+        "dt": 0.02,
+        "resolution": 64,
+        "viscosity": 0.002,
+        "use_implicit_diffusion": false,
+        "init_velocity_noise": 0.1,
+        "init_velocity_scale": 0.3,
+        "init_velocity_smoothness": 1.5,
+        "with_density": true,
+        "substeps": 8,
+        "save_every": 1,
+        "jit_step": true,
+        "forcing_strength": 0.25,
+        "forcing_radius": 0.3,
+        "forcing_smoothness": 2.0,
+        "linear_drag": 0.1,
+        "density_decay": 0.8,
+        "density_source_strength": 2.5,
+        "density_radius": 0.07,
+        "pressure_solver": "CG",
+        "pressure_rel_tol": 0.0001,
+        "pressure_abs_tol": 0.0001,
+        "pressure_max_iters": 200,
+        "burn_in": 1000,
+        "action_mode": "joystick5_localized",
+        "action_strength": 5.0,
+        "action_hold": 8,
+        "action_hold_min": 2,
+        "action_hold_max": 4,
+        "action_radius": 0.14,
+        "held_action_id": -1,
+        "action_start": 1
+      },
+      "same_initial_context": true,
+      "shared_prefix_max_abs_diff": 0.0,
+      "simulator_branch_protocol": "shared_state_v1",
+      "common_model_noise_seed": 12345,
+      "branches": [
+        {
+          "vorticity_correlation": 0.7978453029135266,
+          "tke_ratio": 1.4135238235140581,
+          "enstrophy_ratio": 1.3009920771197068,
+          "divergence_rms": 0.07088457992484518,
+          "spectrum_log10_error": 2.516126602249792,
+          "high_k_log10_bias": 4.03778497967007,
+          "smoke_sharpness_ratio": 0.7215853714190208,
+          "mse_skill_vs_persistence": -2.4469595558870143,
+          "vorticity_crossing_time_below_0_8": 4.32,
+          "vorticity_crossing_time_below_0_5": 5.76,
+          "action": 0,
+          "name": "noop",
+          "mse": 0.02736988663673401,
+          "mean_velocity_final": [
+            0.00031457352451980114,
+            0.0020651337690651417
+          ],
+          "simulator_mean_velocity_final": [
+            -0.0013824787456542253,
+            -0.0007568288128823042
+          ],
+          "velocity_delta_cosine": null,
+          "velocity_delta_cosine_localized": null,
+          "density_correlation": 0.7226487994194031
+        },
+        {
+          "vorticity_correlation": 0.963989266502675,
+          "tke_ratio": 0.8780712693241478,
+          "enstrophy_ratio": 0.9339735797896994,
+          "divergence_rms": 0.06166040996187642,
+          "spectrum_log10_error": 1.95295573741651,
+          "high_k_log10_bias": 3.4288729618336036,
+          "smoke_sharpness_ratio": 0.9266622967566406,
+          "mse_skill_vs_persistence": 0.9514000208272438,
+          "vorticity_crossing_time_below_0_8": null,
+          "vorticity_crossing_time_below_0_5": null,
+          "action": 1,
+          "name": "up",
+          "mse": 0.01993013545870781,
+          "mean_velocity_final": [
+            0.0021455518435686827,
+            -0.0005988284829072654
+          ],
+          "simulator_mean_velocity_final": [
+            0.009639035910367966,
+            -0.004803723189979792
+          ],
+          "velocity_delta_cosine": 0.9573728442192078,
+          "velocity_delta_cosine_localized": 0.9792030826798047,
+          "density_correlation": 0.9432399868965149
+        },
+        {
+          "vorticity_correlation": 0.6181227836129214,
+          "tke_ratio": 0.9316755371412846,
+          "enstrophy_ratio": 0.9299510446078674,
+          "divergence_rms": 0.06861918462693598,
+          "spectrum_log10_error": 1.902693894100177,
+          "high_k_log10_bias": 3.291081580372583,
+          "smoke_sharpness_ratio": 0.41754944589893495,
+          "mse_skill_vs_persistence": 0.3731128961742437,
+          "vorticity_crossing_time_below_0_8": 3.68,
+          "vorticity_crossing_time_below_0_5": 4.16,
+          "action": 2,
+          "name": "down",
+          "mse": 0.2960752546787262,
+          "mean_velocity_final": [
+            0.0021262408699840307,
+            -0.00192168855573982
+          ],
+          "simulator_mean_velocity_final": [
+            0.00593720655888319,
+            -0.004284922499209642
+          ],
+          "velocity_delta_cosine": 0.4823441803455353,
+          "velocity_delta_cosine_localized": 0.5251571588408019,
+          "density_correlation": 0.6970390677452087
+        },
+        {
+          "vorticity_correlation": 0.8637554699669856,
+          "tke_ratio": 0.9084532932101895,
+          "enstrophy_ratio": 0.9325676847934179,
+          "divergence_rms": 0.0736224547233251,
+          "spectrum_log10_error": 1.920944471370095,
+          "high_k_log10_bias": 3.3370661715305623,
+          "smoke_sharpness_ratio": 0.8542197590645182,
+          "mse_skill_vs_persistence": 0.7961238632143288,
+          "vorticity_crossing_time_below_0_8": 4.96,
+          "vorticity_crossing_time_below_0_5": null,
+          "action": 3,
+          "name": "right",
+          "mse": 0.1077561229467392,
+          "mean_velocity_final": [
+            0.0047572036273777485,
+            -7.934847963042557e-05
+          ],
+          "simulator_mean_velocity_final": [
+            0.0010455718729645014,
+            -0.007050300016999245
+          ],
+          "velocity_delta_cosine": 0.8697887659072876,
+          "velocity_delta_cosine_localized": 0.9253982292454402,
+          "density_correlation": 0.7724724411964417
+        },
+        {
+          "vorticity_correlation": 0.9043014720020361,
+          "tke_ratio": 0.8508308894105913,
+          "enstrophy_ratio": 0.866223048372456,
+          "divergence_rms": 0.07646805600713272,
+          "spectrum_log10_error": 2.1040773462123776,
+          "high_k_log10_bias": 3.5717308801321197,
+          "smoke_sharpness_ratio": 0.5252964146705473,
+          "mse_skill_vs_persistence": 0.8424447104890186,
+          "vorticity_crossing_time_below_0_8": 5.12,
+          "vorticity_crossing_time_below_0_5": null,
+          "action": 4,
+          "name": "left",
+          "mse": 0.08489169925451279,
+          "mean_velocity_final": [
+            -0.0008239366579800844,
+            0.000572508608456701
+          ],
+          "simulator_mean_velocity_final": [
+            -0.010577453300356865,
+            0.006147588603198528
+          ],
+          "velocity_delta_cosine": 0.8184760212898254,
+          "velocity_delta_cosine_localized": 0.8678287540887825,
+          "density_correlation": 0.8316776156425476
+        }
+      ],
+      "branch_mse_from_noop": [
+        0.0,
+        0.3663802146911621,
+        0.2865928113460541,
+        0.41280803084373474,
+        0.28971895575523376
+      ],
+      "simulator_branch_mse_from_noop": [
+        0.0,
+        0.39538827538490295,
+        0.32244032621383667,
+        0.4140394330024719,
+        0.3903528153896332
+      ],
+      "interpretation": "Branch separation alone is not correct control; compare simulator response direction and physical metrics."
+    }
+  ],
+  "visualized_seed": 200003,
+  "aggregation": "Mean of per-episode means; velocity-response cosines exclude no-op, field correlations include all five branches.",
+  "aggregate_metrics": {
+    "velocity_delta_cosine_localized": {
+      "mean": 0.8398921904086155,
+      "episode_sd": 0.08433865190772782,
+      "episode_means": [
+        0.9019047806799747,
+        0.8610734509860591,
+        0.7020569543081062,
+        0.9100289598552299,
+        0.8243968062137074
+      ]
+    },
+    "velocity_delta_cosine": {
+      "mean": 0.7936709821224213,
+      "episode_sd": 0.1077362465968846,
+      "episode_means": [
+        0.8593391329050064,
+        0.8435012847185135,
+        0.6111702546477318,
+        0.8723487854003906,
+        0.781995452940464
+      ]
+    },
+    "vorticity_correlation": {
+      "mean": 0.8366305592393747,
+      "episode_sd": 0.07455611341826072,
+      "episode_means": [
+        0.8901683258211366,
+        0.883541329468763,
+        0.7100626790150463,
+        0.8697776028922991,
+        0.8296028589996289
+      ]
+    },
+    "density_correlation": {
+      "mean": 0.7419226574897766,
+      "episode_sd": 0.037748163796981093,
+      "episode_means": [
+        0.7312958598136902,
+        0.7451350688934326,
+        0.6886306524276733,
+        0.7511361241340637,
+        0.7934155821800232
+      ]
+    },
+    "mse": {
+      "mean": 0.12068001963198186,
+      "episode_sd": 0.0701559710092844,
+      "episode_means": [
+        0.07120565623044968,
+        0.09944582842290402,
+        0.2435921121388674,
+        0.08195188157260418,
+        0.107204619795084
+      ]
+    }
+  }
+}

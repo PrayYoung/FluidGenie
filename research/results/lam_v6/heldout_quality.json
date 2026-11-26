@@ -1,0 +1,519 @@
+{
+  "episodes": [
+    {
+      "episode": "episode_000000.npy",
+      "finite": true,
+      "kinetic_energy_ratio_last_first_quarter": 0.8291130661964417,
+      "mean_motion": 0.059923335909843445,
+      "motion_rms_ratio_last_first_quarter": 0.9263351559638977,
+      "sampled_diagnostics": [
+        {
+          "frame": 0,
+          "time_since_burn_in": 0.0,
+          "u_rms": 0.468474805355072,
+          "vorticity_rms": 4.468414783477783,
+          "gt_motion_rms": 0.05875234678387642,
+          "max_abs_divergence": 0.027075767517089844
+        },
+        {
+          "frame": 20,
+          "time_since_burn_in": 3.2,
+          "u_rms": 0.5018885731697083,
+          "vorticity_rms": 5.826000690460205,
+          "gt_motion_rms": 0.06577083468437195,
+          "max_abs_divergence": 0.043338775634765625
+        },
+        {
+          "frame": 40,
+          "time_since_burn_in": 6.4,
+          "u_rms": 0.6130711436271667,
+          "vorticity_rms": 4.918581962585449,
+          "gt_motion_rms": 0.09719832986593246,
+          "max_abs_divergence": 0.0524747371673584
+        },
+        {
+          "frame": 80,
+          "time_since_burn_in": 12.8,
+          "u_rms": 0.43327271938323975,
+          "vorticity_rms": 5.462218284606934,
+          "gt_motion_rms": 0.0846519023180008,
+          "max_abs_divergence": 0.05361318588256836
+        },
+        {
+          "frame": 120,
+          "time_since_burn_in": 19.2,
+          "u_rms": 0.44704964756965637,
+          "vorticity_rms": 4.728404998779297,
+          "gt_motion_rms": 0.1017066240310669,
+          "max_abs_divergence": 0.030540943145751953
+        }
+      ],
+      "density_std": 0.0874638631939888,
+      "stationarity_gate": true
+    },
+    {
+      "episode": "episode_000001.npy",
+      "finite": true,
+      "kinetic_energy_ratio_last_first_quarter": 0.8685100674629211,
+      "mean_motion": 0.054429396986961365,
+      "motion_rms_ratio_last_first_quarter": 0.996084988117218,
+      "sampled_diagnostics": [
+        {
+          "frame": 0,
+          "time_since_burn_in": 0.0,
+          "u_rms": 0.36844176054000854,
+          "vorticity_rms": 3.510035276412964,
+          "gt_motion_rms": 0.07845035940408707,
+          "max_abs_divergence": 0.019230127334594727
+        },
+        {
+          "frame": 20,
+          "time_since_burn_in": 3.2,
+          "u_rms": 0.34063073992729187,
+          "vorticity_rms": 4.169102191925049,
+          "gt_motion_rms": 0.09722112864255905,
+          "max_abs_divergence": 0.02534472942352295
+        },
+        {
+          "frame": 40,
+          "time_since_burn_in": 6.4,
+          "u_rms": 0.47056466341018677,
+          "vorticity_rms": 4.924840450286865,
+          "gt_motion_rms": 0.062135398387908936,
+          "max_abs_divergence": 0.04224872589111328
+        },
+        {
+          "frame": 80,
+          "time_since_burn_in": 12.8,
+          "u_rms": 0.34915807843208313,
+          "vorticity_rms": 4.850978851318359,
+          "gt_motion_rms": 0.08408418297767639,
+          "max_abs_divergence": 0.021376609802246094
+        },
+        {
+          "frame": 120,
+          "time_since_burn_in": 19.2,
+          "u_rms": 0.4954770803451538,
+          "vorticity_rms": 3.998868942260742,
+          "gt_motion_rms": 0.09064745903015137,
+          "max_abs_divergence": 0.019317150115966797
+        }
+      ],
+      "density_std": 0.08778008818626404,
+      "stationarity_gate": true
+    },
+    {
+      "episode": "episode_000002.npy",
+      "finite": true,
+      "kinetic_energy_ratio_last_first_quarter": 2.1831207275390625,
+      "mean_motion": 0.05041102319955826,
+      "motion_rms_ratio_last_first_quarter": 1.0170254707336426,
+      "sampled_diagnostics": [
+        {
+          "frame": 0,
+          "time_since_burn_in": 0.0,
+          "u_rms": 0.2347583919763565,
+          "vorticity_rms": 2.9828689098358154,
+          "gt_motion_rms": 0.067873015999794,
+          "max_abs_divergence": 0.006535887718200684
+        },
+        {
+          "frame": 20,
+          "time_since_burn_in": 3.2,
+          "u_rms": 0.3596581220626831,
+          "vorticity_rms": 4.084883213043213,
+          "gt_motion_rms": 0.07468944042921066,
+          "max_abs_divergence": 0.02112722396850586
+        },
+        {
+          "frame": 40,
+          "time_since_burn_in": 6.4,
+          "u_rms": 0.3355009853839874,
+          "vorticity_rms": 4.894217014312744,
+          "gt_motion_rms": 0.10377922654151917,
+          "max_abs_divergence": 0.019582748413085938
+        },
+        {
+          "frame": 80,
+          "time_since_burn_in": 12.8,
+          "u_rms": 0.2966972887516022,
+          "vorticity_rms": 2.922222137451172,
+          "gt_motion_rms": 0.08570508658885956,
+          "max_abs_divergence": 0.008728981018066406
+        },
+        {
+          "frame": 120,
+          "time_since_burn_in": 19.2,
+          "u_rms": 0.3792403042316437,
+          "vorticity_rms": 4.155243396759033,
+          "gt_motion_rms": 0.09777489304542542,
+          "max_abs_divergence": 0.01783454418182373
+        }
+      ],
+      "density_std": 0.07754616439342499,
+      "stationarity_gate": false
+    },
+    {
+      "episode": "episode_000003.npy",
+      "finite": true,
+      "kinetic_energy_ratio_last_first_quarter": 1.0236670970916748,
+      "mean_motion": 0.04500753432512283,
+      "motion_rms_ratio_last_first_quarter": 1.118796706199646,
+      "sampled_diagnostics": [
+        {
+          "frame": 0,
+          "time_since_burn_in": 0.0,
+          "u_rms": 0.18847103416919708,
+          "vorticity_rms": 2.756023406982422,
+          "gt_motion_rms": 0.06744417548179626,
+          "max_abs_divergence": 0.015030384063720703
+        },
+        {
+          "frame": 20,
+          "time_since_burn_in": 3.2,
+          "u_rms": 0.2972332239151001,
+          "vorticity_rms": 3.7653956413269043,
+          "gt_motion_rms": 0.09896539896726608,
+          "max_abs_divergence": 0.023822784423828125
+        },
+        {
+          "frame": 40,
+          "time_since_burn_in": 6.4,
+          "u_rms": 0.3750838041305542,
+          "vorticity_rms": 4.708802700042725,
+          "gt_motion_rms": 0.0659845769405365,
+          "max_abs_divergence": 0.023833036422729492
+        },
+        {
+          "frame": 80,
+          "time_since_burn_in": 12.8,
+          "u_rms": 0.1815008670091629,
+          "vorticity_rms": 3.7513587474823,
+          "gt_motion_rms": 0.07876773178577423,
+          "max_abs_divergence": 0.022665739059448242
+        },
+        {
+          "frame": 120,
+          "time_since_burn_in": 19.2,
+          "u_rms": 0.2405133843421936,
+          "vorticity_rms": 3.029296636581421,
+          "gt_motion_rms": 0.08973224461078644,
+          "max_abs_divergence": 0.018114328384399414
+        }
+      ],
+      "density_std": 0.09283599257469177,
+      "stationarity_gate": true
+    },
+    {
+      "episode": "episode_000004.npy",
+      "finite": true,
+      "kinetic_energy_ratio_last_first_quarter": 0.8509552478790283,
+      "mean_motion": 0.05204397439956665,
+      "motion_rms_ratio_last_first_quarter": 0.9044955968856812,
+      "sampled_diagnostics": [
+        {
+          "frame": 0,
+          "time_since_burn_in": 0.0,
+          "u_rms": 0.2043774425983429,
+          "vorticity_rms": 2.9673852920532227,
+          "gt_motion_rms": 0.08226470649242401,
+          "max_abs_divergence": 0.023285627365112305
+        },
+        {
+          "frame": 20,
+          "time_since_burn_in": 3.2,
+          "u_rms": 0.4418005049228668,
+          "vorticity_rms": 3.9469029903411865,
+          "gt_motion_rms": 0.09153863787651062,
+          "max_abs_divergence": 0.025877952575683594
+        },
+        {
+          "frame": 40,
+          "time_since_burn_in": 6.4,
+          "u_rms": 0.30115777254104614,
+          "vorticity_rms": 4.34320592880249,
+          "gt_motion_rms": 0.057368095964193344,
+          "max_abs_divergence": 0.028040170669555664
+        },
+        {
+          "frame": 80,
+          "time_since_burn_in": 12.8,
+          "u_rms": 0.12160390615463257,
+          "vorticity_rms": 4.7366862297058105,
+          "gt_motion_rms": 0.06432554125785828,
+          "max_abs_divergence": 0.023728251457214355
+        },
+        {
+          "frame": 120,
+          "time_since_burn_in": 19.2,
+          "u_rms": 0.47103211283683777,
+          "vorticity_rms": 3.834874153137207,
+          "gt_motion_rms": 0.0820537731051445,
+          "max_abs_divergence": 0.020028114318847656
+        }
+      ],
+      "density_std": 0.07397285848855972,
+      "stationarity_gate": true
+    },
+    {
+      "episode": "episode_000005.npy",
+      "finite": true,
+      "kinetic_energy_ratio_last_first_quarter": 1.1518346071243286,
+      "mean_motion": 0.05849640443921089,
+      "motion_rms_ratio_last_first_quarter": 0.8925224542617798,
+      "sampled_diagnostics": [
+        {
+          "frame": 0,
+          "time_since_burn_in": 0.0,
+          "u_rms": 0.41660207509994507,
+          "vorticity_rms": 4.198373317718506,
+          "gt_motion_rms": 0.08051624149084091,
+          "max_abs_divergence": 0.014619827270507812
+        },
+        {
+          "frame": 20,
+          "time_since_burn_in": 3.2,
+          "u_rms": 0.42821788787841797,
+          "vorticity_rms": 4.731655597686768,
+          "gt_motion_rms": 0.10251381248235703,
+          "max_abs_divergence": 0.0318598747253418
+        },
+        {
+          "frame": 40,
+          "time_since_burn_in": 6.4,
+          "u_rms": 0.23961587250232697,
+          "vorticity_rms": 4.0362348556518555,
+          "gt_motion_rms": 0.08845718950033188,
+          "max_abs_divergence": 0.040430307388305664
+        },
+        {
+          "frame": 80,
+          "time_since_burn_in": 12.8,
+          "u_rms": 0.4604369103908539,
+          "vorticity_rms": 5.101010799407959,
+          "gt_motion_rms": 0.10572516918182373,
+          "max_abs_divergence": 0.021280288696289062
+        },
+        {
+          "frame": 120,
+          "time_since_burn_in": 19.2,
+          "u_rms": 0.4271529018878937,
+          "vorticity_rms": 6.405570030212402,
+          "gt_motion_rms": 0.12768124043941498,
+          "max_abs_divergence": 0.014608383178710938
+        }
+      ],
+      "density_std": 0.08239991962909698,
+      "stationarity_gate": true
+    },
+    {
+      "episode": "episode_000006.npy",
+      "finite": true,
+      "kinetic_energy_ratio_last_first_quarter": 1.3159433603286743,
+      "mean_motion": 0.058167047798633575,
+      "motion_rms_ratio_last_first_quarter": 1.062920331954956,
+      "sampled_diagnostics": [
+        {
+          "frame": 0,
+          "time_since_burn_in": 0.0,
+          "u_rms": 0.2612358331680298,
+          "vorticity_rms": 4.2970805168151855,
+          "gt_motion_rms": 0.049098800867795944,
+          "max_abs_divergence": 0.04777026176452637
+        },
+        {
+          "frame": 20,
+          "time_since_burn_in": 3.2,
+          "u_rms": 0.4201320707798004,
+          "vorticity_rms": 4.646486759185791,
+          "gt_motion_rms": 0.07739891856908798,
+          "max_abs_divergence": 0.02154994010925293
+        },
+        {
+          "frame": 40,
+          "time_since_burn_in": 6.4,
+          "u_rms": 0.3895140588283539,
+          "vorticity_rms": 3.688493251800537,
+          "gt_motion_rms": 0.10750126093626022,
+          "max_abs_divergence": 0.024101972579956055
+        },
+        {
+          "frame": 80,
+          "time_since_burn_in": 12.8,
+          "u_rms": 0.37488260865211487,
+          "vorticity_rms": 5.389736652374268,
+          "gt_motion_rms": 0.10431192070245743,
+          "max_abs_divergence": 0.03523111343383789
+        },
+        {
+          "frame": 120,
+          "time_since_burn_in": 19.2,
+          "u_rms": 0.517409086227417,
+          "vorticity_rms": 5.0099196434021,
+          "gt_motion_rms": 0.09324004501104355,
+          "max_abs_divergence": 0.03155517578125
+        }
+      ],
+      "density_std": 0.07531218230724335,
+      "stationarity_gate": true
+    },
+    {
+      "episode": "episode_000007.npy",
+      "finite": true,
+      "kinetic_energy_ratio_last_first_quarter": 0.7294819355010986,
+      "mean_motion": 0.04368625953793526,
+      "motion_rms_ratio_last_first_quarter": 1.173857569694519,
+      "sampled_diagnostics": [
+        {
+          "frame": 0,
+          "time_since_burn_in": 0.0,
+          "u_rms": 0.16966377198696136,
+          "vorticity_rms": 2.3686492443084717,
+          "gt_motion_rms": 0.07500221580266953,
+          "max_abs_divergence": 0.014302492141723633
+        },
+        {
+          "frame": 20,
+          "time_since_burn_in": 3.2,
+          "u_rms": 0.49511557817459106,
+          "vorticity_rms": 3.991408348083496,
+          "gt_motion_rms": 0.0681961253285408,
+          "max_abs_divergence": 0.02039504051208496
+        },
+        {
+          "frame": 40,
+          "time_since_burn_in": 6.4,
+          "u_rms": 0.36970335245132446,
+          "vorticity_rms": 3.909791946411133,
+          "gt_motion_rms": 0.04522676393389702,
+          "max_abs_divergence": 0.024138927459716797
+        },
+        {
+          "frame": 80,
+          "time_since_burn_in": 12.8,
+          "u_rms": 0.2951095700263977,
+          "vorticity_rms": 4.651142120361328,
+          "gt_motion_rms": 0.08639269322156906,
+          "max_abs_divergence": 0.031662940979003906
+        },
+        {
+          "frame": 120,
+          "time_since_burn_in": 19.2,
+          "u_rms": 0.47900617122650146,
+          "vorticity_rms": 4.87631368637085,
+          "gt_motion_rms": 0.05504899471998215,
+          "max_abs_divergence": 0.03238725662231445
+        }
+      ],
+      "density_std": 0.08349825441837311,
+      "stationarity_gate": true
+    },
+    {
+      "episode": "episode_000008.npy",
+      "finite": true,
+      "kinetic_energy_ratio_last_first_quarter": 1.3339649438858032,
+      "mean_motion": 0.054729413241147995,
+      "motion_rms_ratio_last_first_quarter": 0.99555504322052,
+      "sampled_diagnostics": [
+        {
+          "frame": 0,
+          "time_since_burn_in": 0.0,
+          "u_rms": 0.302996963262558,
+          "vorticity_rms": 3.91278076171875,
+          "gt_motion_rms": 0.07157912105321884,
+          "max_abs_divergence": 0.024285078048706055
+        },
+        {
+          "frame": 20,
+          "time_since_burn_in": 3.2,
+          "u_rms": 0.5877651572227478,
+          "vorticity_rms": 4.853842735290527,
+          "gt_motion_rms": 0.07745876908302307,
+          "max_abs_divergence": 0.04151153564453125
+        },
+        {
+          "frame": 40,
+          "time_since_burn_in": 6.4,
+          "u_rms": 0.39314955472946167,
+          "vorticity_rms": 4.480452537536621,
+          "gt_motion_rms": 0.11797456443309784,
+          "max_abs_divergence": 0.030670166015625
+        },
+        {
+          "frame": 80,
+          "time_since_burn_in": 12.8,
+          "u_rms": 0.24554865062236786,
+          "vorticity_rms": 2.8436477184295654,
+          "gt_motion_rms": 0.08251018822193146,
+          "max_abs_divergence": 0.016913175582885742
+        },
+        {
+          "frame": 120,
+          "time_since_burn_in": 19.2,
+          "u_rms": 0.6410706043243408,
+          "vorticity_rms": 6.308664321899414,
+          "gt_motion_rms": 0.06477028131484985,
+          "max_abs_divergence": 0.04476642608642578
+        }
+      ],
+      "density_std": 0.07584911584854126,
+      "stationarity_gate": true
+    },
+    {
+      "episode": "episode_000009.npy",
+      "finite": true,
+      "kinetic_energy_ratio_last_first_quarter": 1.1301926374435425,
+      "mean_motion": 0.054564978927373886,
+      "motion_rms_ratio_last_first_quarter": 0.8970854878425598,
+      "sampled_diagnostics": [
+        {
+          "frame": 0,
+          "time_since_burn_in": 0.0,
+          "u_rms": 0.47479158639907837,
+          "vorticity_rms": 4.00810432434082,
+          "gt_motion_rms": 0.09897051751613617,
+          "max_abs_divergence": 0.02721881866455078
+        },
+        {
+          "frame": 20,
+          "time_since_burn_in": 3.2,
+          "u_rms": 0.5716931223869324,
+          "vorticity_rms": 5.04005765914917,
+          "gt_motion_rms": 0.04080171138048172,
+          "max_abs_divergence": 0.024370670318603516
+        },
+        {
+          "frame": 40,
+          "time_since_burn_in": 6.4,
+          "u_rms": 0.3299694359302521,
+          "vorticity_rms": 3.6158833503723145,
+          "gt_motion_rms": 0.09387004375457764,
+          "max_abs_divergence": 0.029539108276367188
+        },
+        {
+          "frame": 80,
+          "time_since_burn_in": 12.8,
+          "u_rms": 0.521079421043396,
+          "vorticity_rms": 5.498835563659668,
+          "gt_motion_rms": 0.06383852660655975,
+          "max_abs_divergence": 0.019084930419921875
+        },
+        {
+          "frame": 120,
+          "time_since_burn_in": 19.2,
+          "u_rms": 0.5595574378967285,
+          "vorticity_rms": 5.442253112792969,
+          "gt_motion_rms": 0.10159294307231903,
+          "max_abs_divergence": 0.03413677215576172
+        }
+      ],
+      "density_std": 0.09281542897224426,
+      "stationarity_gate": true
+    }
+  ],
+  "finite_gate": true,
+  "persistent_motion_gate": true,
+  "stationarity_gate": false,
+  "stationarity_definition": "Kinetic energy and RMS interframe motion means over last/first quarter in [0.5,2], with mean absolute interframe motion >1e-3. This is a finite-window gate, not proof of statistical stationarity.",
+  "require_stationarity": false
+}

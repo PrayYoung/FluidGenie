@@ -1,0 +1,7 @@
+{
+  "family": "continuous_residual_cr1_v3_k8",
+  "control": "configs/cr1_v2_bounded_residual.json",
+  "only_difference": "unroll_steps=8 with clean predicted-context recursion; no context noise",
+  "memory_execution": "effective batch remains 32; four sequential microbatches of 8 accumulate mean gradients because full batch-32 k8 backprop exceeds 24 GB RTX 4090 VRAM",
+  "fixed": {"data": "data/raw/ns2d_verified", "stats": "data/stats/ns2d_verified_stats.npz", "context": 2, "batch": 32, "microbatch": 8, "steps": 3000, "lr": 0.0003, "seed": 0, "hidden_dims": [64,128,256], "num_res_blocks": 2, "residual_scales": [0.6900073122978174,0.6508875427246094,0.504023551940918]}
+}

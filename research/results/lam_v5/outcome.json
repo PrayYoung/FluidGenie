@@ -1,0 +1,46 @@
+{
+  "retrieved_bytes": 441015403,
+  "delivered_files_verified": 138,
+  "recorded_at": "2026-11-24T07:47:28.639238+00:00",
+  "scope": "One new LAM training seed; previously inspected heldout split reused. Joint intervention cannot isolate mechanisms.",
+  "discovery": {
+    "nmi": 0.2701761384440699,
+    "out_of_sample_purity": 0.4603174603174603,
+    "active_test_codes": 8,
+    "five_action_mapping_gate": false,
+    "discovery_gate_passed": false,
+    "conditioned_mse": 0.01705015940843002,
+    "zero_code_mse": 0.7496459769824194,
+    "shuffled_code_mse": 0.037113849341218905,
+    "causal_ratio_shuffled_over_real": 2.1767450058483853,
+    "gate": {
+      "version": 4,
+      "nmi_min": 0.2,
+      "purity_min": 0.8,
+      "codes_used_min": 5,
+      "shuffled_over_real_min_exclusive": 2.0,
+      "zero_ablation_improvement_min": 0.05
+    }
+  },
+  "previous_discovery": {
+    "nmi": 0.42558283665945396,
+    "out_of_sample_purity": 0.6587301587301587,
+    "active_test_codes": 8,
+    "five_action_mapping_gate": false,
+    "discovery_gate_passed": false,
+    "conditioned_mse": 0.021598343154607666,
+    "zero_code_mse": 1.3945579102115027,
+    "shuffled_code_mse": 0.044738096791866515,
+    "causal_ratio_shuffled_over_real": 2.0713670706876584,
+    "gate": {
+      "version": 4,
+      "nmi_min": 0.2,
+      "purity_min": 0.8,
+      "codes_used_min": 5,
+      "shuffled_over_real_min_exclusive": 2.0,
+      "zero_ablation_improvement_min": 0.05
+    }
+  },
+  "purity_change_percentage_points": -19.841269841269842,
+  "semantic_gate_passed": false
+}

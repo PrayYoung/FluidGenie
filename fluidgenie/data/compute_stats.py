@@ -29,10 +29,14 @@ def update_running_mean_var(
     return new_mean, new_var, total
 
 
-def compute_stats(data_dir: str) -> tuple[
-    Float[Array, "c"], Float[Array, "c"], Float[Array, "c"], Float[Array, "c"]
-]:
-    files = sorted(glob.glob(os.path.join(data_dir, "*.npy")))
+def compute_stats(
+    data_dir: str,
+) -> tuple[Float[Array, "c"], Float[Array, "c"], Float[Array, "c"], Float[Array, "c"]]:
+    files = sorted(
+        f
+        for f in glob.glob(os.path.join(data_dir, "*.npy"))
+        if not f.endswith(".actions.npy")
+    )
     assert files, f"No npy found in {data_dir}"
 
     mean = None
@@ -58,7 +62,9 @@ def compute_stats(data_dir: str) -> tuple[
             min_v = batch_min
             max_v = batch_max
         else:
-            mean, var, count = update_running_mean_var(mean, var, count, batch_mean, batch_var, batch_count)
+            mean, var, count = update_running_mean_var(
+                mean, var, count, batch_mean, batch_var, batch_count
+            )
             min_v = np.minimum(min_v, batch_min)
             max_v = np.maximum(max_v, batch_max)
 
@@ -74,13 +80,23 @@ def compute_stats(data_dir: str) -> tuple[
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", type=str, required=True)
-    ap.add_argument("--out", type=str, required=True, help="Output .npz path for mean/std")
+    ap.add_argument(
+        "--out", type=str, required=True, help="Output .npz path for mean/std"
+    )
+    ap.add_argument(
+        "--zscore-only",
+        action="store_true",
+        help="Save training mean/std only; selects z-score normalization",
+    )
     args = ap.parse_args()
 
     mean, std, min_v, max_v = compute_stats(args.data)
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    np.savez(out, mean=mean, std=std, min=min_v, max=max_v)
+    if args.zscore_only:
+        np.savez(out, mean=mean, std=std)
+    else:
+        np.savez(out, mean=mean, std=std, min=min_v, max=max_v)
     print(f"Saved stats to {out}")
     print("mean:", mean)
     print("std:", std)

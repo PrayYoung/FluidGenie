@@ -1,0 +1,33 @@
+{
+  "action_dim": 32,
+  "batch": 32,
+  "checkpoint_every": 1000,
+  "context": 2,
+  "data": "data/lam_v5/joystick/train",
+  "divergence_weight": 0.01,
+  "grain_workers": 4,
+  "hidden_dims": [
+    64,
+    128,
+    256
+  ],
+  "lam_ckpt": "outputs/lam_v6/lam/latest",
+  "lam_discovery": "outputs/lam_v6/lam_discovery.json",
+  "log_every": 50,
+  "lr": 0.0003,
+  "max_grad_norm": 1.0,
+  "modern": true,
+  "num_res_blocks": 2,
+  "out": "outputs/lam_v6/action_fm",
+  "physics_dx": 0.015625,
+  "resume": false,
+  "seed": 0,
+  "sobolev_weight": 0.01,
+  "stats": "data/lam_v5/joystick/train_stats.npz",
+  "steps": 15000,
+  "tb": 0,
+  "time_dim": 128,
+  "use_lam": true,
+  "warmup_steps": 500,
+  "weight_decay": 0.0001
+}

@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Dict, Tuple
 
 from jaxtyping import Array, Float, Int
+import jax
 import jax.numpy as jnp
 
 import flax.linen as nn
@@ -38,6 +39,7 @@ class TokenizerSTVQVAE(nn.Module):
             self.latent_dim,
             self.num_latents,
             self.codebook_dropout,
+            reserve_code0=self.bg_thresh > 0,
         )
         self.out_dim = self.in_dim * self.patch_size**2
         self.decoder = STTransformer(
@@ -48,6 +50,7 @@ class TokenizerSTVQVAE(nn.Module):
             self.dropout,
             # Use causal mask to avoid future leakage and align with autoregressive rollout.
             use_causal_mask=True,
+            zero_init_out=True,
         )
 
     def __call__(
@@ -55,18 +58,49 @@ class TokenizerSTVQVAE(nn.Module):
     ) -> Dict[str, Array]:
         h, w = batch["videos"].shape[2:4]
         outputs = self.vq_encode(batch["videos"], training)
-        recon = self.decoder(outputs["z_q"], training=training)
+        recon = self.decoder(
+            outputs["z_q"],
+            training=training,
+            spatial_shape=(
+                (h + self.patch_size - 1) // self.patch_size,
+                (w + self.patch_size - 1) // self.patch_size,
+            ),
+        )
         outputs["recon"] = unpatchify(recon, self.patch_size, h, w)
+        outputs["code_usage"] = jnp.bincount(
+            outputs["indices"].reshape(-1), length=self.num_latents
+        )
         return outputs
 
-    def vq_encode(self, videos: Float[Array, "b t h w c"], training: bool = True) -> Dict[str, Array]:
+    def vq_encode(
+        self, videos: Float[Array, "b t h w c"], training: bool = True
+    ) -> Dict[str, Array]:
         b, t = videos.shape[:2]
         x = patchify(videos, self.patch_size)
         n = x.shape[2]
-        x = self.encoder(x, training=training)
+        x = self.encoder(
+            x,
+            training=training,
+            spatial_shape=(
+                (videos.shape[2] + self.patch_size - 1) // self.patch_size,
+                (videos.shape[3] + self.patch_size - 1) // self.patch_size,
+            ),
+        )
 
         x = x.reshape(b * t * n, self.latent_dim)
         z_q, z, emb, indices = self.vq(x, training)
+        if self.bg_thresh > 0:
+            background = jnp.all(
+                jnp.abs(videos + 1.0) < self.bg_thresh, axis=-1, keepdims=True
+            )
+            background = jnp.all(
+                patchify(background.astype(jnp.float32), self.patch_size) > 0.5, axis=-1
+            ).reshape(-1)
+            reserved = self.vq.get_codes(jnp.zeros_like(indices))
+            indices = jnp.where(background, 0, indices)
+            z = jnp.where(background[:, None], reserved, z)
+            z_q = emb + jax.lax.stop_gradient(z - emb)
+
         z_q = z_q.reshape(b, t, n, self.latent_dim)
         indices = indices.reshape(b, t, n)
         return dict(z_q=z_q, z=z, emb=emb, indices=indices)
@@ -94,7 +128,7 @@ class TokenizerSTVQVAE(nn.Module):
         return tok_grid
 
     def encode_video(
-            self, x: Float[Array, "b t h w c"], training: bool = False
+        self, x: Float[Array, "b t h w c"], training: bool = False
     ) -> Int[Array, "b t h2 w2"]:
         # x: [B,T,H,W,C] -> tokens [B,T,h,w]
         b, t, h, w, c = x.shape
@@ -112,21 +146,24 @@ class TokenizerSTVQVAE(nn.Module):
             bg_patches = patchify(bg_px, self.patch_size)  # [B,T,N,P]
             bg_patch = jnp.all(bg_patches > 0.5, axis=-1).reshape(b, t, hn, wn)
             tok_grid = jnp.where(bg_patch, 0, tok_grid)
-        
+
         return tok_grid
 
-    def decode_tokens(
-        self, indices: Int[Array, "b h w"], video_hw: Tuple[int, int]
-    ) -> Float[Array, "b h w c"]:
-        # indices: [B,h,w]
-        b, h, w = indices.shape
-        z = self.vq.get_codes(indices.reshape(b, 1, h * w))
-        recon = self.decoder(z, training=False)
-        img = unpatchify(recon, self.patch_size, *video_hw)
+    def decode_video_tokens(self, indices, video_hw):
+        b, t, h, w = indices.shape
+        z = self.vq.get_codes(indices.reshape(b, t, h * w))
+        recon = self.decoder(z, training=False, spatial_shape=(h, w))
+        video = unpatchify(recon, self.patch_size, *video_hw)
         if self.bg_thresh > 0:
-            bg_mask_tok = (indices == 0)
-            bg_mask_px = jnp.repeat(jnp.repeat(bg_mask_tok, self.patch_size, axis=1), self.patch_size, axis=2)
-            img = jnp.where(bg_mask_px[..., None], -1.0, img)
-        if img.ndim == 5:
-            return img[:, 0]
-        return unpatchify(recon, self.patch_size, *video_hw)
+            mask = jnp.repeat(
+                jnp.repeat(indices == 0, self.patch_size, axis=2),
+                self.patch_size,
+                axis=3,
+            )
+            video = jnp.where(
+                mask[:, :, : video_hw[0], : video_hw[1], None], -1.0, video
+            )
+        return video
+
+    def decode_tokens(self, indices, video_hw):
+        return self.decode_video_tokens(indices[:, None], video_hw)[:, 0]

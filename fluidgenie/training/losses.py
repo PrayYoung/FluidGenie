@@ -11,8 +11,8 @@ from jaxtyping import Array, Bool, Float, Int
 def spatial_grads(
     img: Float[Array, "b h w c"],
 ) -> Tuple[Float[Array, "b h w c"], Float[Array, "b h w c"]]:
-    # Central differences with edge padding to keep H,W sizes
-    img_pad = jnp.pad(img, ((0, 0), (1, 1), (1, 1), (0, 0)), mode="edge")
+    # Central differences with periodic padding to keep H,W sizes
+    img_pad = jnp.pad(img, ((0, 0), (1, 1), (1, 1), (0, 0)), mode="wrap")
     dx = 0.5 * (img_pad[:, 1:-1, 2:, :] - img_pad[:, 1:-1, :-2, :])
     dy = 0.5 * (img_pad[:, 2:, 1:-1, :] - img_pad[:, :-2, 1:-1, :])
     return dx, dy
@@ -22,8 +22,8 @@ def compute_vorticity(img: Float[Array, "b h w c"]) -> Float[Array, "b h w"]:
     # img: [B,H,W,C], assumes C>=2 with u=0, v=1
     u = img[..., 0]
     v = img[..., 1]
-    u_pad = jnp.pad(u, ((0, 0), (1, 1), (1, 1)), mode="edge")
-    v_pad = jnp.pad(v, ((0, 0), (1, 1), (1, 1)), mode="edge")
+    u_pad = jnp.pad(u, ((0, 0), (1, 1), (1, 1)), mode="wrap")
+    v_pad = jnp.pad(v, ((0, 0), (1, 1), (1, 1)), mode="wrap")
     du_dy = 0.5 * (u_pad[:, 2:, 1:-1] - u_pad[:, :-2, 1:-1])
     dv_dx = 0.5 * (v_pad[:, 1:-1, 2:] - v_pad[:, 1:-1, :-2])
     return dv_dx - du_dy
@@ -40,8 +40,8 @@ def tokenizer_conv_loss(
     x_rec, _, commit_loss, codebook_loss = apply_fn({"params": params}, batch)
 
     recon_loss = jnp.mean((x_rec - batch) ** 2)
-    dy_true, dx_true = spatial_grads(batch)
-    dy_rec, dx_rec = spatial_grads(x_rec)
+    dx_true, dy_true = spatial_grads(batch)
+    dx_rec, dy_rec = spatial_grads(x_rec)
     grad_loss = jnp.mean((dx_rec - dx_true) ** 2 + (dy_rec - dy_true) ** 2)
     w_true = compute_vorticity(batch)
     w_rec = compute_vorticity(x_rec)
@@ -91,8 +91,8 @@ def tokenizer_st_loss(
     batch_flat = batch.reshape(b * t, h, w, c)
     recon_flat = recon.reshape(b * t, h, w, c)
 
-    dy_true, dx_true = spatial_grads(batch_flat)
-    dy_rec, dx_rec = spatial_grads(recon_flat)
+    dx_true, dy_true = spatial_grads(batch_flat)
+    dx_rec, dy_rec = spatial_grads(recon_flat)
     grad_loss = jnp.mean((dx_rec - dx_true) ** 2 + (dy_rec - dy_true) ** 2)
 
     w_true = compute_vorticity(batch_flat)
@@ -100,8 +100,13 @@ def tokenizer_st_loss(
     vorticity_loss = jnp.mean((w_rec - w_true) ** 2)
 
     # 3. sum up
-    loss = (recon_loss + alpha * grad_loss + gamma * vorticity_loss
-            + q_loss + beta * commit_loss)
+    loss = (
+        recon_loss
+        + alpha * grad_loss
+        + gamma * vorticity_loss
+        + q_loss
+        + beta * commit_loss
+    )
 
     return loss, {
         "loss": loss,
@@ -110,6 +115,8 @@ def tokenizer_st_loss(
         "commit": commit_loss,
         "grad": grad_loss,
         "vorticity": vorticity_loss,
+        "code_usage": outputs["code_usage"],
+        "restart_candidates": outputs["emb"],
     }
 
 
@@ -137,6 +144,10 @@ def lam_loss(
         "mse": mse,
         "q_loss": q_loss,
         "commit": commit_loss,
+        "code_usage": jnp.bincount(
+            outputs["indices"].reshape(-1), length=params["vq"]["codebook"].shape[0]
+        ),
+        "restart_candidates": outputs["emb"],
     }
 
 
@@ -193,7 +204,9 @@ def dynamics_st_loss(
     if mask_ratio_min >= mask_ratio_max:
         mask_prob = mask_ratio_max
     else:
-        mask_prob = jax.random.uniform(rng1, minval=mask_ratio_min, maxval=mask_ratio_max)
+        mask_prob = jax.random.uniform(
+            rng1, minval=mask_ratio_min, maxval=mask_ratio_max
+        )
     full_mask = jax.random.bernoulli(rng3, jnp.clip(mask_full_prob, 0.0, 1.0))
     mask_prob = jnp.where(full_mask, 1.0, mask_prob)
 
@@ -203,7 +216,9 @@ def dynamics_st_loss(
     default_mask = jnp.zeros((b, pred_frames, n), dtype=jnp.bool_).at[:, 0, 0].set(True)
     mask_future = jnp.where(mask_any, mask_future, default_mask)
 
-    mask = jnp.zeros((b, t, n), dtype=jnp.bool_).at[:, context_frames:, :].set(mask_future)
+    mask = (
+        jnp.zeros((b, t, n), dtype=jnp.bool_).at[:, context_frames:, :].set(mask_future)
+    )
     batch = {"video_tokens": tok_seq, "mask_rng": mask_key, "mask": mask}
     if latent_actions is not None:
         batch["latent_actions"] = latent_actions
@@ -227,7 +242,9 @@ def dynamics_st_loss(
     future_mask = mask[:, context_frames:].astype(ce.dtype)
     future_ce = ce[:, context_frames:]
     # If sanity checks fail, emit NaN to surface the issue.
-    sanity_ok = jnp.logical_and(prev_ok, jnp.logical_or(future_any, future_mask.sum() == 0))
+    sanity_ok = jnp.logical_and(
+        prev_ok, jnp.logical_or(future_any, future_mask.sum() == 0)
+    )
     future_mask = jnp.where(sanity_ok, future_mask, jnp.nan)
     denom = jnp.maximum(future_mask.sum(), 1.0)
     future_pred = logits[:, context_frames:].argmax(-1)

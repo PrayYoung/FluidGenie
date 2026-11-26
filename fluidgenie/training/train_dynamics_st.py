@@ -14,21 +14,22 @@ Run:
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Tuple
+from functools import partial
 
 import jax
+from fluidgenie.training.initialization import initialization_rngs
 import jax.numpy as jnp
-import optax
 from flax.training import train_state
 from tqdm import trange
 from jaxtyping import Array, Float, Int
 import tyro
 
+from configs.config_io import load_config_json
 from configs.model_configs import DynamicsConfig
-from configs.config_io import save_config_json
-from dataclasses import asdict
+from fluidgenie.training.run_metadata import prepare_run
 from fluidgenie.data.dataset_npz import create_grain_dataloader
+from fluidgenie.training.optimizers import make_optimizer
 from fluidgenie.training.logging_utils import TrainingLogger
 from fluidgenie.training.losses import dynamics_st_loss
 from fluidgenie.training.checkpoint_utils import save_params, load_params
@@ -41,7 +42,7 @@ class TrainState(train_state.TrainState):
     pass
 
 
-@jax.jit
+@partial(jax.jit, static_argnums=(2, 3, 4, 5))
 def train_step_st(
     state: TrainState,
     tok_seq: Int[Array, "b t h w"],
@@ -75,7 +76,9 @@ def train_step_st(
 def main():
     args = tyro.cli(DynamicsConfig)
     if args.model != "st_maskgit":
-        print(f"[warn] train_dynamics_st expects model=st_maskgit, got {args.model}. Overwriting.")
+        print(
+            f"[warn] train_dynamics_st expects model=st_maskgit, got {args.model}. Overwriting."
+        )
         args.model = "st_maskgit"
 
     rng = jax.random.PRNGKey(args.seed)
@@ -131,6 +134,7 @@ def main():
             raise ValueError("--lam_ckpt is required when use_lam=True")
         lam_model = LatentActionModel(
             in_dim=C,
+            architecture_version=(load_config_json(args.lam_ckpt) or {}).get("config", {}).get("architecture_version", 2),
             model_dim=args.lam_model_dim,
             latent_dim=args.lam_latent_dim,
             num_latents=args.lam_num_latents,
@@ -174,20 +178,23 @@ def main():
     )
     init_batch = {"video_tokens": tok_seq0, "mask_rng": rng}
     if args.use_lam:
-        init_batch["latent_actions"] = lam_encode(lam_params, jnp.concatenate([x_ctx0, x_tgt0], axis=1))
+        init_batch["latent_actions"] = lam_encode(
+            lam_params, jnp.concatenate([x_ctx0, x_tgt0], axis=1)
+        )
     st_dynamics_params = st_dynamics_model.init(
-        rng, init_batch, training=True
+        initialization_rngs(rng), init_batch, training=True
     )["params"]
 
     state = TrainState.create(
         apply_fn=st_dynamics_model.apply,
         params=st_dynamics_params,
-        tx=optax.adam(args.lr),
+        tx=make_optimizer(args.lr, args.steps),
     )
 
-    out = Path(args.out)
-    out.mkdir(parents=True, exist_ok=True)
-    logger = TrainingLogger(out, run_name="dynamics_st", log_every=args.log_every, use_tb=bool(args.tb))
+    out = prepare_run(args.out, "dynamics_st", args)
+    logger = TrainingLogger(
+        out, run_name="dynamics_st", log_every=args.log_every, use_tb=bool(args.tb)
+    )
     dropout_rng = jax.random.PRNGKey(args.seed + 1)
     mask_rng = jax.random.PRNGKey(args.seed + 2)
 
@@ -221,13 +228,12 @@ def main():
             metrics["frame_stride"] = jnp.asarray(args.frame_stride, dtype=jnp.float32)
             logger.log(step, metrics, prefix="train")
 
-        if step % 1000 == 0 and step > 0:
+        if args.checkpoint_every > 0 and step % args.checkpoint_every == 0 and step > 0:
             save_params(out, f"step_{step:06d}", state.params)
             save_params(out, "latest", state.params)
 
     save_params(out, "final", state.params)
     save_params(out, "latest", state.params)
-    save_config_json(out, {"kind": "dynamics_st", "config": asdict(args)})
     logger.close()
     print("Saved ST dynamics to", out)
 

@@ -1,0 +1,16 @@
+[
+  {
+    "model": "lam",
+    "training_step": 8000,
+    "finite_checkpoint": true,
+    "latest_matches_training_state": true,
+    "optimizer_and_rng_restored": true
+  },
+  {
+    "model": "action_fm",
+    "training_step": 15000,
+    "finite_checkpoint": true,
+    "latest_matches_training_state": true,
+    "optimizer_and_rng_restored": true
+  }
+]

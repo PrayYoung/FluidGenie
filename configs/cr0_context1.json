@@ -1,0 +1,17 @@
+{
+  "family": "continuous_residual_cr0_context1",
+  "control": "configs/cr0_reproduction.json",
+  "only_difference": "context=1; predict x[t+1] from x[t] through the same deterministic full-state residual model",
+  "data": "data/raw/ns2d_verified",
+  "stats": "data/stats/ns2d_verified_stats.npz",
+  "context": 1,
+  "steps": 3000,
+  "batch": 32,
+  "lr": 0.0003,
+  "seed": 0,
+  "hidden_dims": [64, 128, 256],
+  "num_res_blocks": 2,
+  "unroll_steps": 1,
+  "evaluation": {"episodes": [0, 1, 2], "start": 0, "horizon": 40, "teacher_target_indices": [1, 11, 21, 31, 41, 51]},
+  "excluded": ["periodic_convolution", "physics_losses", "background_sparsity", "fourier_spatial_positional_encoding", "architecture_changes"]
+}

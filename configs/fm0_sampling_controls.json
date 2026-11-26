@@ -1,0 +1,15 @@
+{
+  "family": "fm0_existing_checkpoint_sampling_controls",
+  "checkpoint": "outputs/fm0_reproduction/latest",
+  "dataset": "data/raw/ns2d_verified",
+  "stats": "data/stats/ns2d_verified_stats.npz",
+  "episodes": [0, 1, 2],
+  "teacher_target_indices": [2, 12, 22, 32, 42, 52],
+  "conditional_mean_sample_counts": [1, 2, 4, 8, 16, 32],
+  "rollout_conditional_mean_sample_counts": [1, 4, 8, 16],
+  "fixed_noise_control": true,
+  "horizon": 40,
+  "ode_sampler": "heun",
+  "ode_steps": 8,
+  "base_seed": 1000
+}

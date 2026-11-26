@@ -1,0 +1,6 @@
+{
+  "state": "passed",
+  "discovery_gate_passed": true,
+  "five_action_mapping_gate": true,
+  "reason": "Frozen v4 certificate required; no retries on a negative result."
+}

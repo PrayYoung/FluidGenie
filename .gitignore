@@ -5,3 +5,26 @@ __pycache__/
 /data/
 runs/
 demo/
+
+# Local infrastructure, diagnostics, and large training artifacts
+.vast/
+.runpod/
+.codex_avira_probe_results.json
+*.log
+/campaign_inputs/
+/outputs/
+/scripts/fm0_vast_setup.sh
+/scripts/cr1_p2_finish_campaign.sh
+
+# Generated Python build and validation caches
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+
+# OS metadata, notebook caches and local environment variants
+.DS_Store
+.ipynb_checkpoints/
+.env.*
+!.env.example

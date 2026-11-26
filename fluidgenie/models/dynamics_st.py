@@ -46,11 +46,13 @@ class DynamicsSTMaskGIT(nn.Module):
     ) -> Dict[str, Array]:
         # video_tokens: [B,T,N] or [B,T,H,W]
         video_tokens = batch["video_tokens"]
+        spatial_shape = None
         if video_tokens.ndim == 4:
             b, t, h, w = video_tokens.shape
+            spatial_shape = (h, w)
             video_tokens = video_tokens.reshape(b, t, h * w)
 
-        vid_embed = self.patch_embed(video_tokens) # [B,T,N] -> [B,T,N,D]
+        vid_embed = self.patch_embed(video_tokens)  # [B,T,N] -> [B,T,N,D]
 
         mask = batch.get("mask", None)
         if mask is not None and mask.ndim == 4:
@@ -65,12 +67,16 @@ class DynamicsSTMaskGIT(nn.Module):
                     rng1, minval=self.mask_ratio_min, maxval=self.mask_ratio_max
                 )
             # Explicitly include full-mask training samples to match rollout-from-mask behavior.
-            full_mask = jax.random.bernoulli(rng3, jnp.clip(self.mask_full_prob, 0.0, 1.0))
+            full_mask = jax.random.bernoulli(
+                rng3, jnp.clip(self.mask_full_prob, 0.0, 1.0)
+            )
             mask_prob = jnp.where(full_mask, 1.0, mask_prob)
-            mask_shape = vid_embed.shape[:-1] # [B,T,N,D] -> [B,T,N]
+            mask_shape = vid_embed.shape[:-1]  # [B,T,N,D] -> [B,T,N]
             if len(mask_shape) == 3:
                 # only mask the last frame
-                mask_last = jax.random.bernoulli(rng2, mask_prob, vid_embed[:, -1].shape[:-1])
+                mask_last = jax.random.bernoulli(
+                    rng2, mask_prob, vid_embed[:, -1].shape[:-1]
+                )
                 mask = jnp.zeros(mask_shape, dtype=jnp.bool_).at[:, -1].set(mask_last)
             else:
                 mask = jax.random.bernoulli(rng2, mask_prob, mask_shape)
@@ -85,5 +91,7 @@ class DynamicsSTMaskGIT(nn.Module):
                 act_embed = act_embed[:, :, None, :]
             vid_embed += jnp.pad(act_embed, ((0, 0), (1, 0), (0, 0), (0, 0)))
 
-        logits = self.dynamics(vid_embed, training=training)
+        logits = self.dynamics(
+            vid_embed, training=training, spatial_shape=spatial_shape
+        )
         return dict(token_logits=logits, mask=mask)

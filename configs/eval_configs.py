@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field, asdict, replace
+from dataclasses import dataclass, field, replace
 
 from configs.model_configs import DynamicsConfig, TokenizerConfig
 from configs.config_io import load_config_json, merge_dataclass_from_config
@@ -15,7 +15,9 @@ _TOKENIZER_MODEL_DIM_DEFAULT = TokenizerConfig.__dataclass_fields__["model_dim"]
 _TOKENIZER_BLOCKS_DEFAULT = TokenizerConfig.__dataclass_fields__["num_blocks"].default
 _TOKENIZER_HEADS_DEFAULT = TokenizerConfig.__dataclass_fields__["num_heads"].default
 _TOKENIZER_DROPOUT_DEFAULT = TokenizerConfig.__dataclass_fields__["dropout"].default
-_TOKENIZER_CODEBOOK_DROPOUT_DEFAULT = TokenizerConfig.__dataclass_fields__["codebook_dropout"].default
+_TOKENIZER_CODEBOOK_DROPOUT_DEFAULT = TokenizerConfig.__dataclass_fields__[
+    "codebook_dropout"
+].default
 _TOKENIZER_BG_THRESH_DEFAULT = TokenizerConfig.__dataclass_fields__["bg_thresh"].default
 
 _DYN_MODEL_DEFAULT = DynamicsConfig.__dataclass_fields__["model"].default
@@ -24,17 +26,33 @@ _DYN_HEADS_DEFAULT = DynamicsConfig.__dataclass_fields__["n_heads"].default
 _DYN_LAYERS_DEFAULT = DynamicsConfig.__dataclass_fields__["n_layers"].default
 _DYN_DROPOUT_DEFAULT = DynamicsConfig.__dataclass_fields__["dropout"].default
 _DYN_MASK_STEPS_DEFAULT = DynamicsConfig.__dataclass_fields__["mask_steps"].default
-_DYN_MASK_RATIO_MAX_DEFAULT = DynamicsConfig.__dataclass_fields__["mask_ratio_max"].default
+_DYN_MASK_RATIO_MAX_DEFAULT = DynamicsConfig.__dataclass_fields__[
+    "mask_ratio_max"
+].default
 _DYN_USE_LAM_DEFAULT = DynamicsConfig.__dataclass_fields__["use_lam"].default
 _DYN_LAM_CKPT_DEFAULT = DynamicsConfig.__dataclass_fields__["lam_ckpt"].default
-_DYN_LAM_MODEL_DIM_DEFAULT = DynamicsConfig.__dataclass_fields__["lam_model_dim"].default
-_DYN_LAM_LATENT_DIM_DEFAULT = DynamicsConfig.__dataclass_fields__["lam_latent_dim"].default
-_DYN_LAM_NUM_LATENTS_DEFAULT = DynamicsConfig.__dataclass_fields__["lam_num_latents"].default
-_DYN_LAM_PATCH_SIZE_DEFAULT = DynamicsConfig.__dataclass_fields__["lam_patch_size"].default
-_DYN_LAM_NUM_BLOCKS_DEFAULT = DynamicsConfig.__dataclass_fields__["lam_num_blocks"].default
-_DYN_LAM_NUM_HEADS_DEFAULT = DynamicsConfig.__dataclass_fields__["lam_num_heads"].default
+_DYN_LAM_MODEL_DIM_DEFAULT = DynamicsConfig.__dataclass_fields__[
+    "lam_model_dim"
+].default
+_DYN_LAM_LATENT_DIM_DEFAULT = DynamicsConfig.__dataclass_fields__[
+    "lam_latent_dim"
+].default
+_DYN_LAM_NUM_LATENTS_DEFAULT = DynamicsConfig.__dataclass_fields__[
+    "lam_num_latents"
+].default
+_DYN_LAM_PATCH_SIZE_DEFAULT = DynamicsConfig.__dataclass_fields__[
+    "lam_patch_size"
+].default
+_DYN_LAM_NUM_BLOCKS_DEFAULT = DynamicsConfig.__dataclass_fields__[
+    "lam_num_blocks"
+].default
+_DYN_LAM_NUM_HEADS_DEFAULT = DynamicsConfig.__dataclass_fields__[
+    "lam_num_heads"
+].default
 _DYN_LAM_DROPOUT_DEFAULT = DynamicsConfig.__dataclass_fields__["lam_dropout"].default
-_DYN_LAM_CODEBOOK_DROPOUT_DEFAULT = DynamicsConfig.__dataclass_fields__["lam_codebook_dropout"].default
+_DYN_LAM_CODEBOOK_DROPOUT_DEFAULT = DynamicsConfig.__dataclass_fields__[
+    "lam_codebook_dropout"
+].default
 _DYN_BOS_DEFAULT = DynamicsConfig.__dataclass_fields__["bos_token_id"].default
 _DYN_RNG_DEFAULT = DynamicsConfig.__dataclass_fields__["seed"].default
 
@@ -83,6 +101,8 @@ class RolloutArgs:
     dropout: float = _DYN_DROPOUT_DEFAULT
     mask_steps: int = _DYN_MASK_STEPS_DEFAULT
     init_mask_ratio: float = _DYN_MASK_RATIO_MAX_DEFAULT
+    lam_rollout_mode: str = "context"
+    held_action_id: int = -1
     kv_cache: bool = True
     view: str = "density"
     bos_token_id: int = _DYN_BOS_DEFAULT
@@ -153,6 +173,11 @@ class RolloutConfig:
     codebook_dropout: float = _TOKENIZER_CODEBOOK_DROPOUT_DEFAULT
     bg_thresh: float = _TOKENIZER_BG_THRESH_DEFAULT
     use_lam: bool = _DYN_USE_LAM_DEFAULT
+    lam_rollout_mode: str = "context"  # context | oracle; oracle is evaluation only
+    held_action_id: int = -1
+    skip_split_check: bool = (
+        False  # Synthetic counterfactuals only; never a generalization certificate.
+    )
     lam_ckpt: str = _DYN_LAM_CKPT_DEFAULT
     lam_model_dim: int = _DYN_LAM_MODEL_DIM_DEFAULT
     lam_latent_dim: int = _DYN_LAM_LATENT_DIM_DEFAULT
@@ -199,6 +224,8 @@ def rollout_config_from_demo(args: DemoArgs) -> RolloutConfig:
         bos_token_id=args.rollout.bos_token_id,
         seed=args.rollout.seed,
         use_lam=args.rollout.lam.use_lam,
+        lam_rollout_mode=args.rollout.lam_rollout_mode,
+        held_action_id=args.rollout.held_action_id,
         lam_ckpt=args.rollout.lam.lam_ckpt,
         lam_model_dim=args.rollout.lam.lam_model_dim,
         lam_latent_dim=args.rollout.lam.lam_latent_dim,
@@ -245,7 +272,9 @@ def apply_ckpt_config_to_demo(args: DemoArgs) -> DemoArgs:
     tok_cfg = load_config_json(args.tokenizer.vq_ckpt)
     if tok_cfg and isinstance(tok_cfg.get("config"), dict):
         tok_defaults = defaults.tokenizer
-        tok = merge_dataclass_from_config(args.tokenizer, tok_cfg["config"], tok_defaults)
+        tok = merge_dataclass_from_config(
+            args.tokenizer, tok_cfg["config"], tok_defaults
+        )
     else:
         tok = args.tokenizer
 
@@ -253,17 +282,30 @@ def apply_ckpt_config_to_demo(args: DemoArgs) -> DemoArgs:
     dyn_cfg = load_config_json(args.rollout.dyn_ckpt)
     if dyn_cfg and isinstance(dyn_cfg.get("config"), dict):
         roll_defaults = defaults.rollout
-        roll = merge_dataclass_from_config(args.rollout, dyn_cfg["config"], roll_defaults)
+        roll = merge_dataclass_from_config(
+            args.rollout, dyn_cfg["config"], roll_defaults
+        )
     else:
         roll = args.rollout
 
     # LAM config
     if isinstance(roll.lam, dict):
         roll = replace(roll, lam=LAMArgs(**roll.lam))
+    if dyn_cfg and isinstance(dyn_cfg.get("config"), dict):
+        roll = replace(
+            roll,
+            lam=merge_dataclass_from_config(
+                roll.lam, dyn_cfg["config"], defaults.rollout.lam
+            ),
+        )
     lam_cfg = load_config_json(roll.lam.lam_ckpt)
     if lam_cfg and isinstance(lam_cfg.get("config"), dict):
         lam_defaults = defaults.rollout.lam
-        lam = merge_dataclass_from_config(roll.lam, lam_cfg["config"], lam_defaults)
+        lam = merge_dataclass_from_config(
+            roll.lam,
+            {("lam_" + k): v for k, v in lam_cfg["config"].items()},
+            lam_defaults,
+        )
     else:
         lam = roll.lam
 
@@ -283,7 +325,7 @@ def apply_ckpt_config_to_rollout(cfg: RolloutConfig) -> RolloutConfig:
         out_dir=cfg.out_dir,
         start=cfg.start,
         horizon=cfg.horizon,
-        context=cfg.context,
+        # Keep the actual default context so explicit CLI overrides are preserved.
     )
 
     def _maybe_set(obj: RolloutConfig, field: str, value):
@@ -319,7 +361,7 @@ def apply_ckpt_config_to_rollout(cfg: RolloutConfig) -> RolloutConfig:
         cfg = _maybe_set(cfg, "dropout", d.get("dropout"))
         cfg = _maybe_set(cfg, "model_type", d.get("model"))
         cfg = _maybe_set(cfg, "mask_steps", d.get("mask_steps"))
-        cfg = _maybe_set(cfg, "init_mask_ratio", d.get("mask_ratio_max"))
+        # Training corruption ratios do not initialize observed target tokens.
         cfg = _maybe_set(cfg, "bos_token_id", d.get("bos_token_id"))
         cfg = _maybe_set(cfg, "seed", d.get("seed"))
         cfg = _maybe_set(cfg, "use_lam", d.get("use_lam"))

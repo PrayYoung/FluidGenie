@@ -1,0 +1,14 @@
+{
+  "campaign_id": "fm0_sampling_to_residual_20260906",
+  "remote_policy": {
+    "reuse_one_debug_instance": true,
+    "debug_idle_minutes": 45,
+    "cleanup": "explicit destroy after final stage; watchdog destroys idle instance"
+  },
+  "stages": [
+    {"id": "E0", "config": "configs/fm0_sampling_controls.json", "artifact": "outputs/fm0_sampling_controls"},
+    {"id": "E1", "config": "configs/fm0_sampling_controls.json", "artifact": "outputs/fm0_sampling_controls/fixed_noise"},
+    {"id": "CR0", "config": "configs/cr0_residual.json", "artifact": "outputs/cr0_residual_eval"},
+    {"id": "CR1", "config": "configs/cr1_residual_k4.json", "artifact": "outputs/cr1_residual_k4_eval", "gate": "outputs/cr0_gate.json:run_cr1=true"}
+  ]
+}

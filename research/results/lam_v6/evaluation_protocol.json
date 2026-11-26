@@ -1,0 +1,22 @@
+{
+  "experiment": "shared-state-steering-evaluation",
+  "frozen_at": "2026-11-26T00:07:32.800460+00:00",
+  "original_plan_sha256": "5cdcbbd1a0c0c6296dab2b7598aafbb21be69c575657b0c1b4fa1696b748dedf",
+  "frozen_plan": "# Saved-checkpoint steering evaluation and README visuals\n\nRun the existing LAM v6 / action-conditioned FM checkpoints locally on CPU. Do not retrain or change the 60/10 split, simulator parameters, action mapping or discovery thresholds. Fix the evaluation protocol by initializing, projecting, burning in and advancing a common no-op prefix once, then forking the exact velocity/density/pressure state. Require bit-identical pre-action contexts; do not relax tolerances.\n\nBefore examining steering scores, select simulator seeds 200003\u2013200007, five held-action branches per seed, horizon 40, model noise seed 12345, and Heun-16. Use the first seed (200003) for the counterfactual hero visual regardless of its score. Report mean per-episode metrics across all five seeds, with standard deviation across episode means. Local velocity-response cosine excludes no-op (undefined relative to itself); vorticity and density field correlation include all five branches. Density correlation is an absolute-field measure, not isolated causal control.\n\nThe square visual uses saved model weights on held-out episode 0 and the fixed Right \u2192 Up \u2192 Left \u2192 Down command sequence, 16 steps per command. It illustrates responses to commands and does not establish a square fluid trajectory. The autonomous visual uses the already-saved repair-v4 seed-0 episode-0 H118 rollouts, selected by index, not score. No generated illustration or invented trajectory is used.\n\nKeep each GIF below 2.5 MB with fixed shared scales, capped frame counts and palette/size optimization; record source hashes and rendering parameters. Keep scientific caveats and historical train/evaluation overlap disclosures in the README. A completed benchmark is not automatically a positive steering result; report all selected seeds and the measured response directions honestly.\n",
+  "success_criteria": [
+    "All branch initial contexts are bit-identical.",
+    "Complete the fixed five-seed, five-action H40 evaluation and publish finite metrics or explicit undefined values.",
+    "All visual frames derive from saved real model/simulator arrays, GIFs remain under2.5MB, and README reports outcomes and limits accurately."
+  ],
+  "failure_criteria": [
+    "Any initial-context mismatch or nonfinite state blocks a valid benchmark.",
+    "Negative steering agreement is a valid result; do not select seeds or weaken checks to improve it."
+  ],
+  "primary_metrics": [
+    "velocity_delta_cosine_localized",
+    "vorticity_correlation",
+    "density_correlation",
+    "physical_state_mse"
+  ],
+  "interpretation": "Original pre-evaluation design preserved verbatim; no new evaluation or training was run during repository consolidation."
+}

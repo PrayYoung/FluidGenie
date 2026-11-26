@@ -1,0 +1,15 @@
+{
+  "status": "reviewed with conclusions limited to frozen protocol",
+  "checks": [
+    "Nine saved-array MSE values recomputed independently and match report values.",
+    "All 9 continuous optimizer/RNG/weight states restore to their expected final step and contain finite tensors; LAM parameters restore and are finite.",
+    "All six benchmark summaries certify content- and seed-disjoint training/evaluation splits.",
+    "Three training seeds share the same ten held-out episodes; this is not 30 independent test episodes.",
+    "Reported MSE uses all physical channels, independently of the density visualization option.",
+    "FM uses five times as many training steps as CR/P2 and a more expensive inference solver; comparison is not compute matched.",
+    "Shorter horizons share maximum-horizon trajectory prefixes; horizons are not independent experiments.",
+    "LAM purity and five-action calibration fail despite NMI/code-usage/ablation signal; downstream semantic claims remain unsupported.",
+    "Long-horizon motion/energy are excessive and vorticity correlation decays; finite rollouts are not proof of physically faithful indefinite simulation."
+  ],
+  "decision": "Do not rerun the failed scientific gate automatically. Review per-action confusion, especially no-op and left, and declare the next hypothesis before further GPU training."
+}

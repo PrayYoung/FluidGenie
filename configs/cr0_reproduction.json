@@ -1,0 +1,43 @@
+{
+  "family": "continuous_residual_cr0_direct_state_space",
+  "dataset": {
+    "path": "data/raw/ns2d_verified",
+    "stats": "data/stats/ns2d_verified_stats.npz",
+    "episodes": 30,
+    "frames_per_episode": 120,
+    "resolution": 64,
+    "channels": ["u", "v", "density"],
+    "normalization": "per-channel min-max: (x - min) / (max - min + 1e-6) * 2 - 1"
+  },
+  "training": {
+    "formulation": "delta_x = f_theta(x[t-1], x[t]); x_hat[t+1] = x[t] + delta_x",
+    "context": 2,
+    "deterministic": true,
+    "steps": 3000,
+    "batch": 32,
+    "optimizer": "Adam",
+    "lr": 0.0003,
+    "seed": 0,
+    "hidden_dims": [64, 128, 256],
+    "num_res_blocks": 2,
+    "unroll_steps": 1,
+    "grain_workers": 8,
+    "excluded": [
+      "periodic_convolution",
+      "fourier_spatial_positional_encoding",
+      "gradient_loss",
+      "divergence_loss",
+      "vorticity_loss",
+      "background_sparsity",
+      "tokenizer_or_latent_dynamics"
+    ]
+  },
+  "evaluation": {
+    "episodes": [0, 1, 2],
+    "start": 0,
+    "context": 2,
+    "horizon": 40,
+    "visualizations": ["density", "speed", "vorticity"],
+    "teacher_target_indices": [2, 12, 22, 32, 42, 52]
+  }
+}

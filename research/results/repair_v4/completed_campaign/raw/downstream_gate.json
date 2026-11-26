@@ -1,0 +1,4 @@
+{
+  "state": "scientific_gate_failed",
+  "reason": "Unsupervised LAM discovery failed the predeclared gate; downstream conditioned training and semantic demos were not run."
+}

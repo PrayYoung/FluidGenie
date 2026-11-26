@@ -6,6 +6,16 @@ from typing import Tuple
 import numpy as np
 from jaxtyping import Array, Float
 
+
+def load_episode_actions(episode_path):
+    from pathlib import Path
+
+    path = Path(episode_path)
+    canonical = path.parent / "actions" / path.name
+    legacy = path.with_suffix(".actions.npy")
+    return np.load(canonical if canonical.exists() else legacy)
+
+
 class NPZSequenceDataset:
     def __init__(
         self,
@@ -14,9 +24,22 @@ class NPZSequenceDataset:
         pred: int = 1,
         frame_stride: int = 1,
         stats_path: str | None = None,
+        action_dim: int = 0,
     ):
-        self.files = sorted(glob.glob(os.path.join(data_dir, "*.npy")))
+        if context < 1 or pred < 1 or frame_stride < 1:
+            raise ValueError("Sequence lengths and stride must be positive")
+        if action_dim and (pred != 1 or frame_stride != 1):
+            raise ValueError(
+                "Action-conditioned batches require pred=1 and frame_stride=1"
+            )
+        self.files = sorted(
+            f
+            for f in glob.glob(os.path.join(data_dir, "*.npy"))
+            if not f.endswith(".actions.npy")
+        )
         assert self.files, f"No npy found in {data_dir}"
+        self.action_dim = action_dim
+        self.actions = []
         self.context = context
         self.pred = pred
         self.frame_stride = frame_stride
@@ -39,9 +62,20 @@ class NPZSequenceDataset:
             try:
                 data = np.load(f, mmap_mode="r")
                 self._memmaps.append(data)
+                if action_dim:
+                    action = load_episode_actions(f)
+                    if (
+                        action.shape != (data.shape[0],)
+                        or np.any(action < 0)
+                        or np.any(action >= action_dim)
+                    ):
+                        raise ValueError("Invalid aligned action labels")
+                    self.actions.append(action)
                 T = data.shape[0]
             except Exception:
-                raise ValueError(f"Error loading {f}. Ensure it is a .npy array with shape [T,H,W,C].")
+                raise ValueError(
+                    f"Error loading {f}. Ensure it is a .npy array with shape [T,H,W,C]."
+                )
             # Last target index accessed by this window:
             # t + context + (pred - 1) * frame_stride
             max_t = T - (context + (pred - 1) * frame_stride)
@@ -56,10 +90,11 @@ class NPZSequenceDataset:
     ) -> Tuple[Float[Array, "context h w c"], Float[Array, "pred h w c"]]:
         file_idx, t = self.index[idx]
         fields = self._memmaps[file_idx]
-        x = fields[t : t + self.context]          # [context,H,W,C]
+        x = fields[t : t + self.context]  # [context,H,W,C]
         target_start = t + self.context
         y = fields[
-            target_start : target_start + self.pred * self.frame_stride : self.frame_stride
+            target_start : target_start
+            + self.pred * self.frame_stride : self.frame_stride
         ]  # [pred,H,W,C]
         x = x.astype(np.float32)
         y = y.astype(np.float32)
@@ -70,6 +105,9 @@ class NPZSequenceDataset:
         elif self.mean is not None and self.std is not None:
             x = (x - self.mean) / (self.std + 1e-6)
             y = (y - self.mean) / (self.std + 1e-6)
+        if self.action_dim:
+            action = int(self.actions[file_idx][t + self.context - 1])
+            return x, y, np.eye(self.action_dim, dtype=np.float32)[action]
         return x, y
 
 
@@ -83,6 +121,7 @@ def create_grain_dataloader(
     num_workers: int = 4,
     stats_path: str | None = None,
     worker_buffer_size: int = 4,
+    action_dim: int = 0,
 ) -> grain.DataLoader:
     source = NPZSequenceDataset(
         data_dir,
@@ -90,6 +129,7 @@ def create_grain_dataloader(
         pred=pred,
         frame_stride=frame_stride,
         stats_path=stats_path,
+        action_dim=action_dim,
     )
 
     sampler = grain.samplers.IndexSampler(

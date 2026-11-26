@@ -1,0 +1,46 @@
+{
+  "recorded_at": "2026-11-26T00:34:48.721791+00:00",
+  "backend": "local CPU",
+  "implementation_commit": "15e3c3c",
+  "regression": {
+    "command": "JAX_PLATFORMS=cpu uv run --no-sync pytest -q",
+    "passed": 93,
+    "failed": 0,
+    "elapsed_seconds": 353.23,
+    "warnings": 25,
+    "pythonpath_override_used": false
+  },
+  "branch_order_recheck": {
+    "command": "JAX_PLATFORMS=cpu uv run --no-sync pytest -q tests/test_lam_v6.py -k 'shared_counterfactual or counterfactual_benchmark'",
+    "passed": 2,
+    "failed": 0,
+    "elapsed_seconds": 9.56,
+    "checks": [
+      "One initialization/burn-in per seed",
+      "Exact shared context",
+      "Physical action direction signs",
+      "Bit-identical complete trajectories when branch order is reversed from the same fork",
+      "Two-seed benchmark output and aggregation"
+    ]
+  },
+  "historical_artifact_hashes_verified": 1432,
+  "gifs": {
+    "assets/counterfactual_steering.gif": {
+      "bytes": 1824557,
+      "frames_decoded": 40,
+      "sha256": "566ea5c389cf2d21a8a4c1ca15636110d84c0a7e9880e9e33a1e73f60109dd81"
+    },
+    "assets/square_steering.gif": {
+      "bytes": 1728498,
+      "frames_decoded": 64,
+      "sha256": "bc4e4b64aa06dfe7667473a387c07a952bc6c7335a4c62524201637748ad8628"
+    },
+    "assets/turbulence_rollout.gif": {
+      "bytes": 2047632,
+      "frames_decoded": 60,
+      "sha256": "43620b032dbdacfc4df375f39d2dc13821e82159c9917a42c9f314035e32b27c"
+    }
+  },
+  "new_gpu_jobs": 0,
+  "retraining": false
+}

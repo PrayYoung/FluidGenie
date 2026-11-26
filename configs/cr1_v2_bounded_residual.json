@@ -1,0 +1,28 @@
+{
+  "family": "continuous_residual_cr1_v2_k4_bounded",
+  "control": "configs/cr1_residual_k4.json",
+  "only_difference": "fixed per-channel normalized residual parameterization: delta_c = s_c * tanh(raw_delta_c / s_c)",
+  "data": "data/raw/ns2d_verified",
+  "stats": "data/stats/ns2d_verified_stats.npz",
+  "context": 2,
+  "steps": 3000,
+  "batch": 32,
+  "lr": 0.0003,
+  "seed": 0,
+  "hidden_dims": [64, 128, 256],
+  "num_res_blocks": 2,
+  "unroll_steps": 4,
+  "residual_scales": [0.6900073122978174, 0.6508875427246094, 0.504023551940918],
+  "scale_derivation": {
+    "space": "normalized model state space",
+    "source": "all training-loader NS2D one-step residuals x[t+1]-x[t]; no evaluation metric was used",
+    "rule": "s_c = 4 * p99.9(abs(delta_c))",
+    "reason": "At p99.9, tanh(z)/z with z=0.25 is about 0.98, retaining near-identity behavior for normal residuals while enforcing a finite per-channel bound far below CR1's runaway scale."
+  },
+  "residual_distribution": {
+    "u": {"rms": 0.011683954857289791, "std": 0.011683954857289791, "median_abs": 0.00017839670181274414, "p95_abs": 0.007392168045043945, "p99_abs": 0.03895467519760132, "p999_abs": 0.17250182807445436, "max_abs": 0.9529050588607788},
+    "v": {"rms": 0.011064624413847923, "std": 0.011064624413847923, "median_abs": 0.0001627206802368164, "p95_abs": 0.006826043128967285, "p99_abs": 0.03656762003898639, "p999_abs": 0.1627218856811492, "max_abs": 0.7464802861213684},
+    "density": {"rms": 0.015818865969777107, "std": 0.015818864107131958, "median_abs": 0.0, "p95_abs": 0.003930449485778809, "p99_abs": 0.020701873898506196, "p999_abs": 0.12600588905810772, "max_abs": 1.9999980926513672}
+  },
+  "excluded": ["periodic_convolution", "gradient_loss", "divergence_loss", "vorticity_loss", "background_sparsity", "fourier_spatial_positional_encoding", "stop_gradient", "scheduled_sampling", "additional_loss_weighting", "architecture_change", "tokenizer_or_latent_dynamics"]
+}

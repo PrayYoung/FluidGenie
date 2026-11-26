@@ -1,0 +1,46 @@
+{
+  "dataset": {
+    "out": "data/raw/ns2d_verified",
+    "episodes": 30,
+    "steps": 120,
+    "resolution": 64,
+    "dt": 0.02,
+    "viscosity": 0.001,
+    "forcing_strength": 0.0,
+    "use_implicit_diffusion": false,
+    "with_density": true,
+    "substeps": 1,
+    "seed_rule": "episode seed equals episode index"
+  },
+  "training": {
+    "family": "flow_matching_fm0_direct_state_space",
+    "context": 2,
+    "steps": 3000,
+    "batch": 32,
+    "lr": 0.0003,
+    "hidden_dims": [64, 128, 256],
+    "time_dim": 128,
+    "num_res_blocks": 2,
+    "normalization_stats": "data/stats/ns2d_verified_stats.npz",
+    "excluded": [
+      "periodic_convolution",
+      "fourier_spatial_positional_encoding",
+      "gradient_loss",
+      "divergence_loss",
+      "vorticity_loss",
+      "background_sparsity",
+      "continuous_latent_dynamics",
+      "multi_step_unrolling"
+    ]
+  },
+  "evaluation": {
+    "episode_indices": [0, 1, 2],
+    "start": 0,
+    "context": 2,
+    "horizon": 40,
+    "ode_sampler": "heun",
+    "ode_steps": 8,
+    "base_seed": 1000,
+    "seed_rule": "base_seed + episode_index"
+  }
+}

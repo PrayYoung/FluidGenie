@@ -1,0 +1,133 @@
+{
+  "experiment": "lam-v6-architecture-v4",
+  "source_commit": "1de18cf",
+  "data_reused_from": "lam_v5",
+  "heldout_transitions": 630,
+  "delivery": {
+    "files_verified": 76,
+    "bytes": 209299016,
+    "manifest_sha256": "7711b99405d48730af6e4c378c42b0725ff06e4e1ca4f05803a532ce4d78490d",
+    "new_dataset_downloaded": false
+  },
+  "gpu_regression_tests_passed": 91,
+  "lam_training_steps": 8000,
+  "action_fm_training_steps": 15000,
+  "discovery": {
+    "out_of_sample_purity": 0.9444444444444444,
+    "nmi": 0.7919822110714678,
+    "active_test_codes": 8,
+    "five_action_mapping_gate": true,
+    "discovery_gate_passed": true,
+    "causal_ratio_shuffled_over_real": 8.00592672601127,
+    "conditioned_mse": 0.0072628490118649865,
+    "zero_code_mse": 0.037999052209188304,
+    "shuffled_code_mse": 0.05814583701107444,
+    "copy_baseline_mse": 0.1489066424365673,
+    "gate": {
+      "version": 4,
+      "nmi_min": 0.2,
+      "purity_min": 0.8,
+      "codes_used_min": 5,
+      "shuffled_over_real_min_exclusive": 2.0,
+      "zero_ablation_improvement_min": 0.05
+    }
+  },
+  "comparison": {
+    "previous_v5_purity": 0.4603174603174603,
+    "purity_change_percentage_points": 48.41269841269841
+  },
+  "campaign_outcome": {
+    "status": "partial_success_evaluation_blocked",
+    "command_exit_code": 1,
+    "classification": "WORKLOAD_FAILURE",
+    "failed_stage": "counterfactual",
+    "reason": "Regenerated simulator branches failed the pre-action context equality assertion: maximum reported absolute mismatch 1.4901161e-6 versus atol1e-6 (rtol1e-7).",
+    "showcase_exported": false,
+    "steering_correctness_established": false,
+    "cleanup": "terminated"
+  },
+  "limits": [
+    "One LAM training seed.",
+    "Previously inspected development heldout set, not a fresh final test.",
+    "Joint architecture revision cannot isolate individual mechanisms.",
+    "Latent alignment and successful FM training do not establish causal steering quality."
+  ],
+  "recorded_at": "2026-11-25T07:04:53.459067+00:00",
+  "discovery_recomputed_from_transition_evidence": true,
+  "checkpoint_validation_ref": "checkpoint_validation.json",
+  "counterfactual_followup": {
+    "status": "completed_evaluation_only",
+    "recorded_at": "2026-11-26T00:36:57.043865+00:00",
+    "backend": "local CPU",
+    "retraining": false,
+    "seeds": [
+      200003,
+      200004,
+      200005,
+      200006,
+      200007
+    ],
+    "branches": 25,
+    "shared_prefix_max_abs_diff": 0.0,
+    "simulator_branch_protocol": "shared_state_v1",
+    "aggregate_metrics": {
+      "velocity_delta_cosine_localized": {
+        "mean": 0.8398921904086155,
+        "episode_sd": 0.08433865190772782,
+        "episode_means": [
+          0.9019047806799747,
+          0.8610734509860591,
+          0.7020569543081062,
+          0.9100289598552299,
+          0.8243968062137074
+        ]
+      },
+      "velocity_delta_cosine": {
+        "mean": 0.7936709821224213,
+        "episode_sd": 0.1077362465968846,
+        "episode_means": [
+          0.8593391329050064,
+          0.8435012847185135,
+          0.6111702546477318,
+          0.8723487854003906,
+          0.781995452940464
+        ]
+      },
+      "vorticity_correlation": {
+        "mean": 0.8366305592393747,
+        "episode_sd": 0.07455611341826072,
+        "episode_means": [
+          0.8901683258211366,
+          0.883541329468763,
+          0.7100626790150463,
+          0.8697776028922991,
+          0.8296028589996289
+        ]
+      },
+      "density_correlation": {
+        "mean": 0.7419226574897766,
+        "episode_sd": 0.037748163796981093,
+        "episode_means": [
+          0.7312958598136902,
+          0.7451350688934326,
+          0.6886306524276733,
+          0.7511361241340637,
+          0.7934155821800232
+        ]
+      },
+      "mse": {
+        "mean": 0.12068001963198186,
+        "episode_sd": 0.0701559710092844,
+        "episode_means": [
+          0.07120565623044968,
+          0.09944582842290402,
+          0.2435921121388674,
+          0.08195188157260418,
+          0.107204619795084
+        ]
+      }
+    },
+    "report_ref": "counterfactual_summary.json",
+    "interpretation": "Positive response-direction agreement in the fixed evaluated cases, with visible final-density drift; no universal steering correctness claim."
+  }
+}

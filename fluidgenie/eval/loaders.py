@@ -15,11 +15,20 @@ from fluidgenie.eval.utils import (
     make_st_encode_tokens,
 )
 from fluidgenie.training.checkpoint_utils import load_params
+from configs.config_io import load_config_json
 from configs.eval_configs import RolloutConfig
 
 
 def load_tokenizer(cfg: RolloutConfig, H: int, W: int, C: int):
-    vq_cfg = VQConfig(codebook_size=cfg.codebook_size, embed_dim=cfg.embed_dim, hidden=cfg.hidden)
+    if cfg.tokenizer_arch == "st":
+        saved = load_config_json(cfg.vq_ckpt)
+        if not saved or (saved.get("config", {}).get("architecture_version") or 0) < 2:
+            raise ValueError(
+                "This ST checkpoint predates the causal periodic v2 architecture; retrain it before rollout"
+            )
+    vq_cfg = VQConfig(
+        codebook_size=cfg.codebook_size, embed_dim=cfg.embed_dim, hidden=cfg.hidden
+    )
     model, params = load_tokenizer_params(
         cfg.tokenizer_arch,
         vq_cfg,
@@ -47,6 +56,11 @@ def load_tokenizer(cfg: RolloutConfig, H: int, W: int, C: int):
 
 def load_dynamics_model(cfg: RolloutConfig, max_len: int, rng: jax.Array):
     if cfg.model_type == "st_maskgit":
+        saved = load_config_json(cfg.dyn_ckpt)
+        if not saved or (saved.get("config", {}).get("architecture_version") or 0) < 2:
+            raise ValueError(
+                "ST dynamics require architecture_version >= 2; retrain legacy checkpoints"
+            )
         rng, mask_rng = jax.random.split(rng)
         model = DynamicsSTMaskGIT(
             model_dim=cfg.d_model,
@@ -61,7 +75,9 @@ def load_dynamics_model(cfg: RolloutConfig, max_len: int, rng: jax.Array):
         tok_seq0 = jnp.zeros((1, cfg.context + 1, 1, 1), dtype=jnp.int32)
         init_batch = {"video_tokens": tok_seq0, "mask_rng": mask_rng}
         if cfg.use_lam:
-            init_batch["latent_actions"] = jnp.zeros((1, cfg.context, 1, cfg.lam_latent_dim), dtype=jnp.float32)
+            init_batch["latent_actions"] = jnp.zeros(
+                (1, cfg.context, 1, cfg.lam_latent_dim), dtype=jnp.float32
+            )
         params_init = model.init(rng, init_batch, training=False)["params"]
         params = load_params(cfg.dyn_ckpt, params_init)
         return model, params
@@ -84,8 +100,17 @@ def load_lam_model(cfg: RolloutConfig, H: int, W: int, C: int, rng: jax.Array):
         return None, None
     if not cfg.lam_ckpt:
         raise ValueError("--lam_ckpt is required when use_lam=True")
+    saved = load_config_json(cfg.lam_ckpt)
+    if not saved or (saved.get("config", {}).get("architecture_version") or 0) < 2:
+        raise ValueError(
+            "LAM requires architecture_version >= 2; retrain legacy checkpoints"
+        )
+    trained_length = int(saved["config"].get("seq_len", 0))
+    if cfg.context + int(cfg.lam_rollout_mode == "oracle") > trained_length:
+        raise ValueError("LAM rollout exceeds the trained temporal window")
     lam_model = LatentActionModel(
         in_dim=C,
+        architecture_version=saved["config"].get("architecture_version", 2),
         model_dim=cfg.lam_model_dim,
         latent_dim=cfg.lam_latent_dim,
         num_latents=cfg.lam_num_latents,

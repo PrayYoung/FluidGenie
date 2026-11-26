@@ -1,0 +1,30 @@
+{
+  "campaign": "cr0_cr1_v2_robustness",
+  "frozen_controls": {
+    "dataset": "data/raw/ns2d_verified",
+    "stats": "data/stats/ns2d_verified_stats.npz",
+    "model_capacity": {"hidden_dims": [64, 128, 256], "num_res_blocks": 2},
+    "batch": 32,
+    "steps": 3000,
+    "lr": 0.0003,
+    "context": 2,
+    "evaluation_start": 0,
+    "evaluation_episodes": [0, 1, 2]
+  },
+  "stage_a": {"new_training_seeds": [1, 2], "reference_seed": 0, "horizon": 40},
+  "stage_b": {
+    "requested_horizons": [40, 80, 120],
+    "effective_horizons": [40, 80, 118],
+    "h120_rule": "With 120 stored frames, start=0, and context=2, only 118 predicted frames are available. H120 is reported as effective horizon 118; no episode is extrapolated beyond data."
+  },
+  "stage_c": {
+    "heldout_episode_indices": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    "selection_rule": "Deterministic contiguous episode IDs 3..12, excluding repeatedly used IDs 0..2. This set was frozen before campaign execution and is not used to choose parameters.",
+    "horizon": 40
+  },
+  "stage_d": {
+    "model": "CR0 context=1 only",
+    "conditional_cr1_v2_context1": "Run only if context=1 CR0 has no instability and aggregate H40 MSE <= 1.25 times the CR0 context=2 seed mean.",
+    "context1_teacher_target_indices": [1, 11, 21, 31, 41, 51]
+  }
+}

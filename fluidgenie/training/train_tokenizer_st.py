@@ -10,20 +10,20 @@ Run:
 
 from __future__ import annotations
 
-from pathlib import Path
 import numpy as np
 import jax
+from fluidgenie.training.initialization import initialization_rngs
 import jax.numpy as jnp
-import optax
 from flax.training import train_state
 from tqdm import trange
 from jaxtyping import Array, Float
 import tyro
 
 from configs.model_configs import TokenizerConfig
-from configs.config_io import save_config_json
-from dataclasses import asdict
+from fluidgenie.training.run_metadata import prepare_run
 from fluidgenie.data.dataset_npz import create_grain_dataloader
+from fluidgenie.training.codebook_restart import restart_codes, codebook_health
+from fluidgenie.training.optimizers import make_optimizer
 from fluidgenie.training.logging_utils import TrainingLogger
 from fluidgenie.training.losses import tokenizer_st_loss
 from fluidgenie.training.checkpoint_utils import save_params
@@ -34,7 +34,7 @@ class TrainState(train_state.TrainState):
     pass
 
 
-def make_train_step(alpha:float, beta: float, gamma: float):
+def make_train_step(alpha: float, beta: float, gamma: float):
     @jax.jit
     def _train_step(
         state: TrainState,
@@ -42,7 +42,9 @@ def make_train_step(alpha:float, beta: float, gamma: float):
         dropout_key: jax.Array,
     ):
         def loss_fn(params):
-            return tokenizer_st_loss(state.apply_fn, params, batch, alpha, beta, gamma, dropout_key)
+            return tokenizer_st_loss(
+                state.apply_fn, params, batch, alpha, beta, gamma, dropout_key
+            )
 
         (loss, metrics), grads = jax.value_and_grad(loss_fn, has_aux=True)(state.params)
         state = state.apply_gradients(grads=grads)
@@ -54,7 +56,9 @@ def make_train_step(alpha:float, beta: float, gamma: float):
 def main():
     args = tyro.cli(TokenizerConfig)
     if args.arch != "st":
-        print(f"[warn] train_tokenizer_st expects arch=st, got {args.arch}. Overwriting.")
+        print(
+            f"[warn] train_tokenizer_st expects arch=st, got {args.arch}. Overwriting."
+        )
         args.arch = "st"
 
     rng = jax.random.PRNGKey(args.seed)
@@ -87,36 +91,52 @@ def main():
     )
 
     st_tokenizer_params = st_tokenizer_model.init(
-        rng, {"videos": jnp.array(batch0)}, training=True
+        initialization_rngs(rng), {"videos": jnp.array(batch0)}, training=True
     )["params"]
     state = TrainState.create(
         apply_fn=st_tokenizer_model.apply,
         params=st_tokenizer_params,
-        tx=optax.adam(args.lr),
+        tx=make_optimizer(args.lr, args.steps),
     )
 
-    out = Path(args.out)
-    out.mkdir(parents=True, exist_ok=True)
-    logger = TrainingLogger(out, run_name="tokenizer_st", log_every=args.log_every, use_tb=bool(args.tb))
+    out = prepare_run(args.out, "tokenizer_st", args)
+    logger = TrainingLogger(
+        out, run_name="tokenizer_st", log_every=args.log_every, use_tb=bool(args.tb)
+    )
     dropout_rng = jax.random.PRNGKey(args.seed + 1)
     train_step = make_train_step(args.loss_alpha, args.loss_beta, args.loss_gamma)
 
+    usage = jnp.zeros((args.codebook,), dtype=jnp.int32)
     for step in trange(args.steps):
         x_ctx, x_tgt = next(data_iter)
         batch = jnp.array(np.concatenate([x_ctx, x_tgt], axis=1))
         dropout_rng, step_key = jax.random.split(dropout_rng)
         state, metrics = train_step(state, batch, step_key)
+        counts = metrics.pop("code_usage")
+        metrics.update(codebook_health(counts))
+        usage = usage + counts
+        candidates = metrics.pop("restart_candidates")
+        if (
+            args.restart_every > 0
+            and (step + 1) % args.restart_every == 0
+            and (step + 1) <= args.restart_until_fraction * args.steps
+        ):
+            dropout_rng, restart_key = jax.random.split(dropout_rng)
+            state, count = restart_codes(
+                state, usage, candidates, restart_key, reserve_code0=args.bg_thresh > 0
+            )
+            metrics["restarted_codes"] = count
+            usage = jnp.zeros_like(usage)
 
-        if logger.should_log(step):
+        if logger.should_log(step) or "restarted_codes" in metrics:
             logger.log(step, metrics, prefix="train")
 
-        if step % 1000 == 0 and step > 0:
+        if args.checkpoint_every > 0 and step % args.checkpoint_every == 0 and step > 0:
             save_params(out, f"step_{step:06d}", state.params)
             save_params(out, "latest", state.params)
 
     save_params(out, "final", state.params)
     save_params(out, "latest", state.params)
-    save_config_json(out, {"kind": "tokenizer_st", "config": asdict(args)})
     logger.close()
     print("Saved ST tokenizer to", out)
 

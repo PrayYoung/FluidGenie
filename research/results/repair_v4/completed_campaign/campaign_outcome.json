@@ -1,0 +1,98 @@
+{
+  "source_commit": "51d0b5aa9b12c95cdef1cf89a8f1ffb247be4961",
+  "engineering_status": "completed",
+  "scientific_status": "continuous_benchmarks_complete_action_discovery_gate_failed",
+  "command_exit_code": 0,
+  "runner_exit_code": 0,
+  "finished_at": "2026-11-23T04:51:54Z",
+  "pod_cleanup": "terminated",
+  "completed_stages": 25,
+  "training_checkpoints_validated": [
+    {
+      "model": "cr_seed0",
+      "training_step": 3000,
+      "finite_checkpoint": true,
+      "optimizer_and_rng_restored": true
+    },
+    {
+      "model": "cr_seed1",
+      "training_step": 3000,
+      "finite_checkpoint": true,
+      "optimizer_and_rng_restored": true
+    },
+    {
+      "model": "cr_seed2",
+      "training_step": 3000,
+      "finite_checkpoint": true,
+      "optimizer_and_rng_restored": true
+    },
+    {
+      "model": "p2_seed0",
+      "training_step": 3000,
+      "finite_checkpoint": true,
+      "optimizer_and_rng_restored": true
+    },
+    {
+      "model": "p2_seed1",
+      "training_step": 3000,
+      "finite_checkpoint": true,
+      "optimizer_and_rng_restored": true
+    },
+    {
+      "model": "p2_seed2",
+      "training_step": 3000,
+      "finite_checkpoint": true,
+      "optimizer_and_rng_restored": true
+    },
+    {
+      "model": "fm_seed0",
+      "training_step": 15000,
+      "finite_checkpoint": true,
+      "optimizer_and_rng_restored": true
+    },
+    {
+      "model": "fm_seed1",
+      "training_step": 15000,
+      "finite_checkpoint": true,
+      "optimizer_and_rng_restored": true
+    },
+    {
+      "model": "fm_seed2",
+      "training_step": 15000,
+      "finite_checkpoint": true,
+      "optimizer_and_rng_restored": true
+    },
+    {
+      "model": "lam",
+      "configured_training_steps": 6000,
+      "finite_checkpoint": true,
+      "checkpoint_kind": "parameters only; no full optimizer state saved"
+    }
+  ],
+  "regression_tests": {
+    "passed": 72,
+    "warnings": 10,
+    "duration_seconds": 356.43
+  },
+  "heldout_episodes": 10,
+  "training_seeds": [
+    0,
+    1,
+    2
+  ],
+  "resolution": [
+    64,
+    64
+  ],
+  "horizons": [
+    40,
+    80,
+    118
+  ],
+  "discovery_gate_passed": false,
+  "downstream_conditioned_training": "skipped by predeclared scientific gate",
+  "semantic_demo": "not run",
+  "artifacts_retrieved": true,
+  "automatic_chat_reporting": "Failed because the desktop chat had an active writer; results manually reconciled.",
+  "reconciled_at": "2026-11-24T02:47:59.444369+00:00"
+}

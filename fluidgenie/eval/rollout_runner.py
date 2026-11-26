@@ -1,20 +1,12 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 
 import numpy as np
 import jax
 import jax.numpy as jnp
-import matplotlib
 from jaxtyping import Array, Float, Int
-
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-
-try:
-    import imageio.v2 as imageio
-except Exception:  # pragma: no cover
-    import imageio  # type: ignore
 
 from configs.eval_configs import RolloutConfig
 from fluidgenie.eval.loaders import load_tokenizer, load_dynamics_model, load_lam_model
@@ -25,12 +17,18 @@ from fluidgenie.eval.samplers import (
     rollout_tokens_autoregressive,
     rollout_tokens_autoregressive_cached,
 )
-from fluidgenie.eval.utils import ensure_dir, resolve_stats_path, vq_decode_tokens, st_decode_tokens
+from fluidgenie.eval.utils import (
+    ensure_dir,
+    resolve_stats_path,
+    vq_decode_tokens,
+)
 from fluidgenie.models.lam import LatentActionModel
 from configs.config_io import load_config_json
 
 
-def _denorm(x: Float[Array, "... c"], mean, std, min_v=None, denom=None) -> Float[Array, "... c"]:
+def _denorm(
+    x: Float[Array, "... c"], mean, std, min_v=None, denom=None
+) -> Float[Array, "... c"]:
     if min_v is not None and denom is not None:
         return (x + 1.0) * 0.5 * denom + min_v
     if mean is None:
@@ -38,7 +36,9 @@ def _denorm(x: Float[Array, "... c"], mean, std, min_v=None, denom=None) -> Floa
     return x * (std + 1e-6) + mean
 
 
-def _norm(x: Float[Array, "... c"], mean, std, min_v=None, denom=None) -> Float[Array, "... c"]:
+def _norm(
+    x: Float[Array, "... c"], mean, std, min_v=None, denom=None
+) -> Float[Array, "... c"]:
     if min_v is not None and denom is not None:
         return (x - min_v) / denom * 2.0 - 1.0
     if mean is None:
@@ -69,6 +69,12 @@ def visualize_rollout(
     view: str,
     fps: int = 8,
 ) -> None:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import imageio.v2 as imageio
+
     T, _, _, C = gt.shape
     frames = []
     for k in range(T):
@@ -87,6 +93,7 @@ def visualize_rollout(
             title = "Speed"
         elif view == "vorticity" and C >= 2:
             from fluidgenie.eval.utils import vorticity_from_uv
+
             w_gt = vorticity_from_uv(gt_k[..., :2])
             w_pr = vorticity_from_uv(pr_k[..., :2])
             err = np.abs(w_pr - w_gt)
@@ -125,14 +132,44 @@ def visualize_rollout(
     print("Saved:", out_gif)
 
 
+def validate_lam_rollout(cfg):
+    if cfg.lam_rollout_mode not in {"context", "oracle"}:
+        raise ValueError("LAM rollout mode must be context or oracle")
+    if cfg.use_lam:
+        if cfg.context < 2:
+            raise ValueError("LAM rollout needs context >= 2")
+        if cfg.held_action_id < -1 or cfg.held_action_id >= cfg.lam_num_latents:
+            raise ValueError("held_action_id exceeds the LAM codebook")
+        if cfg.lam_rollout_mode == "oracle" and cfg.held_action_id >= 0:
+            raise ValueError("Oracle and held action modes are mutually exclusive")
+
+
 def run_rollout(cfg: RolloutConfig) -> None:
+    validate_lam_rollout(cfg)
+    if cfg.start < 0 or cfg.context < 1 or cfg.horizon < 1:
+        raise ValueError("Invalid rollout bounds")
+    dyn_cfg = load_config_json(cfg.dyn_ckpt)
+    if not dyn_cfg:
+        raise ValueError("Dynamics configuration is required")
+    if not cfg.skip_split_check:
+        from fluidgenie.data.splits import assert_checkpoint_evaluation
+
+        split = assert_checkpoint_evaluation(
+            dyn_cfg["config"], Path(cfg.npz_path).parent
+        )
+    else:
+        split = {
+            "disjoint": False,
+            "status": "explicit synthetic counterfactual bypass; not generalization evidence",
+        }
     out = ensure_dir(Path(cfg.out_dir))
+    (out / "split_validation.json").write_text(json.dumps(split, indent=2))
     if cfg.num_heads_tok is None:
         cfg.num_heads_tok = cfg.n_heads
 
     fields: Float[Array, "t h w c"] = np.load(cfg.npz_path, mmap_mode="r")
     T, H, W, C = fields.shape
-    if cfg.start + cfg.context + cfg.horizon >= T:
+    if cfg.start + cfg.context + cfg.horizon > T:
         raise ValueError(
             f"Not enough frames in episode. Need start+context+horizon < T, got {cfg.start}+{cfg.context}+{cfg.horizon} >= {T}"
         )
@@ -161,17 +198,23 @@ def run_rollout(cfg: RolloutConfig) -> None:
 
     rng = jax.random.PRNGKey(cfg.seed)
 
-    tok_model, tok_params, vq_encode_tokens, vq_cfg, codebook, dec_params = load_tokenizer(cfg, H, W, C)
+    tok_model, tok_params, vq_encode_tokens, vq_cfg, codebook, dec_params = (
+        load_tokenizer(cfg, H, W, C)
+    )
 
-    x0 = jnp.array(_norm(fields[cfg.start][None, ...], mean, std, min_v, denom), dtype=jnp.float32)
+    x0 = jnp.array(
+        _norm(fields[cfg.start][None, ...], mean, std, min_v, denom), dtype=jnp.float32
+    )
 
-    x0_5d = x0[:,None, ...]  # [1,1,H,W,C]
-    tok0 = vq_encode_tokens(tok_params, x0_5d)[:,0]
+    x0_5d = x0[:, None, ...]  # [1,1,H,W,C]
+    tok0 = vq_encode_tokens(tok_params, x0_5d)[:, 0]
     h_tok, w_tok = int(tok0.shape[1]), int(tok0.shape[2])
     L_in = cfg.context * h_tok * w_tok
     L_out = h_tok * w_tok
     max_len = L_in + L_out
-    print(f"[rollout] context={cfg.context} h_tok={h_tok} w_tok={w_tok} max_len={max_len}")
+    print(
+        f"[rollout] context={cfg.context} h_tok={h_tok} w_tok={w_tok} max_len={max_len}"
+    )
     dyn_cfg = load_config_json(cfg.dyn_ckpt)
     if dyn_cfg and isinstance(dyn_cfg.get("config"), dict):
         dyn_ctx = dyn_cfg["config"].get("context")
@@ -188,7 +231,9 @@ def run_rollout(cfg: RolloutConfig) -> None:
                 "Multi-step dynamics checkpoints (pred>1 or frame_stride>1) "
                 "need a dedicated multi-step inference path. TODO: add multi-step rollout."
             )
-    assert max_len == (cfg.context + 1) * h_tok * w_tok, "max_len does not match context/token grid shape"
+    assert max_len == (cfg.context + 1) * h_tok * w_tok, (
+        "max_len does not match context/token grid shape"
+    )
 
     dyn_model, dyn_params = load_dynamics_model(cfg, max_len=max_len, rng=rng)
 
@@ -204,7 +249,9 @@ def run_rollout(cfg: RolloutConfig) -> None:
     )
 
     lam_model, lam_params = load_lam_model(cfg, H, W, C, rng)
-    ctx_frames_dyn = _norm(fields[cfg.start : cfg.start + cfg.context], mean, std, min_v, denom)
+    ctx_frames_dyn = _norm(
+        fields[cfg.start : cfg.start + cfg.context], mean, std, min_v, denom
+    )
 
     def flatten_ctx(tok_ctx: Int[Array, "b t h w"]) -> Int[Array, "b l_in"]:
         return tok_ctx.reshape((tok_ctx.shape[0], -1))
@@ -212,38 +259,60 @@ def run_rollout(cfg: RolloutConfig) -> None:
     def unflatten_grid(tok_flat: Int[Array, "b l_out"]) -> Int[Array, "b h w"]:
         return tok_flat.reshape((tok_flat.shape[0], h_tok, w_tok))
 
-    def rollout_step(carry, _):
-        tok_ctx, step_rng = carry
-        step_rng, rng = jax.random.split(step_rng)
+    preds = []
+    normalized_context = jnp.asarray(ctx_frames_dyn[None], dtype=jnp.float32)
+    for k in range(cfg.horizon):
+        rng, step_rng = jax.random.split(rng)
         if cfg.model_type == "st_maskgit":
             latent_actions = None
             if cfg.use_lam:
-                lam_out = lam_model.apply(
+                observed = normalized_context
+                if cfg.lam_rollout_mode == "oracle":
+                    end = cfg.start + cfg.context + k + 1
+                    observed = jnp.asarray(
+                        _norm(
+                            fields[end - cfg.context - 1 : end], mean, std, min_v, denom
+                        )[None],
+                        dtype=jnp.float32,
+                    )
+                encoded = lam_model.apply(
                     {"params": lam_params},
-                    jnp.array(ctx_frames_dyn[None, ...], dtype=jnp.float32),
+                    observed,
                     training=False,
                     method=LatentActionModel.vq_encode,
-                )
-                latent_actions = lam_out["z_q"]
-                if latent_actions.shape[1] == cfg.context - 1:
-                    pad = jnp.zeros(
-                        (latent_actions.shape[0], 1, latent_actions.shape[2], latent_actions.shape[3]),
-                        dtype=latent_actions.dtype,
+                )["z_q"]
+                latent_actions = encoded[:, -(cfg.context - 1) :]
+                if cfg.held_action_id >= 0:
+                    if cfg.held_action_id >= cfg.lam_num_latents:
+                        raise ValueError("held_action_id exceeds the LAM codebook")
+                    chosen = lam_model.apply(
+                        {"params": lam_params},
+                        jnp.asarray([cfg.held_action_id]),
+                        method=lambda module, ids: module.vq.get_codes(ids),
                     )
-                    latent_actions = jnp.concatenate([latent_actions, pad], axis=1)
+                    next_action = chosen[:, None, None, :]
+                else:
+                    # Reuse a real inferred code for the next transition, never a zero vector.
+                    next_action = encoded[:, -1:]
+                if cfg.lam_rollout_mode == "oracle":
+                    latent_actions = encoded[:, -cfg.context :]
+                else:
+                    latent_actions = jnp.concatenate(
+                        [latent_actions, next_action], axis=1
+                    )
             tok_next = st_maskgit_rollout_tokens(
                 dyn_model,
                 dyn_params,
-                tok_ctx,
+                ctx_tok,
                 mask_steps=cfg.mask_steps,
-                rng_key=rng,
+                rng_key=step_rng,
                 init_mask_ratio=cfg.init_mask_ratio,
                 latent_actions=latent_actions,
             )
         else:
-            tok_in = flatten_ctx(tok_ctx).astype(jnp.int32)
+            tok_in = flatten_ctx(ctx_tok).astype(jnp.int32)
             if cfg.model_type == "maskgit":
-                tok_next_flat = maskgit_rollout_tokens(
+                tok_flat = maskgit_rollout_tokens(
                     dyn_model,
                     dyn_params,
                     tok_in,
@@ -251,10 +320,19 @@ def run_rollout(cfg: RolloutConfig) -> None:
                     vocab=cfg.codebook_size + 1,
                     mask_token_id=cfg.codebook_size,
                     mask_steps=cfg.mask_steps,
-                    rng_key=rng,
+                    rng_key=step_rng,
+                )
+            elif cfg.use_kv_cache:
+                tok_flat = rollout_tokens_autoregressive_cached(
+                    dyn_model,
+                    dyn_params,
+                    tok_in,
+                    L_out=L_out,
+                    bos_token_id=cfg.bos_token_id,
+                    rng_seed=cfg.seed + k,
                 )
             else:
-                tok_next_flat = rollout_tokens_autoregressive(
+                tok_flat = rollout_tokens_autoregressive(
                     dyn_model,
                     dyn_params,
                     tok_in,
@@ -262,53 +340,40 @@ def run_rollout(cfg: RolloutConfig) -> None:
                     vocab=cfg.codebook_size,
                     bos_token_id=cfg.bos_token_id,
                 )
-            tok_next = unflatten_grid(tok_next_flat)
-
-        # Maintain a context window of cfg.context frames.
-        new_tok_ctx = jnp.concatenate([tok_ctx[:, 1:], tok_next[:, None, :, :]], axis=1)
-        return (new_tok_ctx, step_rng), tok_next
-
-    if cfg.model_type == "transformer" and cfg.use_kv_cache:
-        def rollout_cached_step(tok_ctx, _):
-            tok_in = flatten_ctx(tok_ctx).astype(jnp.int32)
-            tok_next_flat = rollout_tokens_autoregressive_cached(
-                dyn_model,
-                dyn_params,
-                tok_in,
-                L_out=L_out,
-                bos_token_id=cfg.bos_token_id,
-                rng_seed=cfg.seed,
-            )
-            tok_next = unflatten_grid(tok_next_flat)
-            new_tok_ctx = jnp.concatenate([tok_ctx[:, 1:], tok_next[:, None, :, :]], axis=1)
-            return new_tok_ctx, tok_next
-
-        _, tok_preds = jax.jit(lambda tc: jax.lax.scan(rollout_cached_step, tc, None, length=cfg.horizon))(ctx_tok)
-    else:
-        initial_carry = (ctx_tok, rng)
-        _, tok_preds = jax.jit(lambda tc: jax.lax.scan(rollout_step, tc, None, length=cfg.horizon))(initial_carry)
-
-    # Quick diagnostics for "static rollout" cases.
-    last_ctx = ctx_tok[:, -1]
-    first_change = float(jnp.mean(tok_preds[0] != last_ctx))
-    if cfg.horizon > 1:
-        step_changes = jnp.mean(tok_preds[1:] != tok_preds[:-1], axis=(1, 2, 3))
-        mean_step_change = float(jnp.mean(step_changes))
-    else:
-        mean_step_change = 0.0
-    print(f"[rollout] token_change first_vs_ctx={first_change:.4f} mean_step={mean_step_change:.4f}")
-
-    preds = []
-    for k in range(cfg.horizon):
-        tok_next = tok_preds[k]
+            tok_next = unflatten_grid(tok_flat)
+        joint_tokens = jnp.concatenate([ctx_tok, tok_next[:, None]], axis=1)
         if cfg.tokenizer_arch == "st":
-            x_hat = st_decode_tokens(tok_model, tok_params, tok_next, (H, W))
+            decoded = tok_model.apply(
+                {"params": tok_params},
+                joint_tokens,
+                (H, W),
+                method=tok_model.decode_video_tokens,
+            )
+            next_normalized = decoded[:, -1]
         else:
-            x_hat = vq_decode_tokens(vq_cfg, dec_params, codebook, tok_next, out_channels=C)
-        x_hat = _denorm(x_hat, mean, std, min_v, denom)
-        preds.append(np.array(x_hat[0]))
-
+            next_normalized = vq_decode_tokens(
+                vq_cfg, dec_params, codebook, tok_next, out_channels=C
+            )
+        preds.append(np.asarray(_denorm(next_normalized, mean, std, min_v, denom)[0]))
+        normalized_context = jnp.concatenate(
+            [normalized_context[:, 1:], next_normalized[:, None]], axis=1
+        )
+        ctx_tok = joint_tokens[:, 1:]
     preds = np.stack(preds, axis=0)
+
+    (out / "rollout_protocol.json").write_text(
+        json.dumps(
+            {
+                "lam_mode": cfg.lam_rollout_mode,
+                "oracle_uses_future": bool(
+                    cfg.use_lam and cfg.lam_rollout_mode == "oracle"
+                ),
+                "held_action_id": cfg.held_action_id,
+                "joint_causal_st_decode": cfg.tokenizer_arch == "st",
+            },
+            indent=2,
+        )
+    )
     gt = fields[cfg.start + cfg.context : cfg.start + cfg.context + cfg.horizon]
     metrics = compute_rollout_metrics(gt, preds, view=cfg.view)
 

@@ -23,6 +23,9 @@ def ensure_dir(p: Path) -> Path:
 def resolve_stats_path(stats_path: str | None, ckpt_path: str) -> Optional[str]:
     if stats_path:
         return stats_path
+    for local in [Path(ckpt_path) / "stats.npz", Path(ckpt_path).parent / "stats.npz"]:
+        if local.exists():
+            return str(local)
     cfg = load_config_json(ckpt_path)
     if cfg and isinstance(cfg.get("config"), dict):
         stats = cfg["config"].get("stats", "")
@@ -34,8 +37,8 @@ def vorticity_from_uv(uv: Float[Array, "h w 2"]) -> Float[Array, "h w"]:
     """uv: [H,W,2] -> vorticity [H,W] using finite differences."""
     u = uv[..., 0]
     v = uv[..., 1]
-    dudY = np.gradient(u, axis=0)
-    dvdX = np.gradient(v, axis=1)
+    dudY = (np.roll(u, -1, axis=0) - np.roll(u, 1, axis=0)) * (u.shape[0] / 2)
+    dvdX = (np.roll(v, -1, axis=1) - np.roll(v, 1, axis=1)) * (v.shape[1] / 2)
     return dvdX - dudY
 
 
@@ -76,7 +79,9 @@ def load_tokenizer_params(
         )["params"]
     else:
         model = VQVAE(vq_cfg, in_channels=in_channels)
-        params_init = model.init(rng, jnp.zeros((1, H, W, in_channels), dtype=jnp.float32))["params"]
+        params_init = model.init(
+            rng, jnp.zeros((1, H, W, in_channels), dtype=jnp.float32)
+        )["params"]
     params = load_params(ckpt_path, params_init)
     return model, params
 
@@ -84,12 +89,16 @@ def load_tokenizer_params(
 def load_dyn_params(dyn_cfg: DynConfig, max_len: int, ckpt_path: str, seed: int = 0):
     model = TransformerDynamics(dyn_cfg)
     rng = jax.random.PRNGKey(seed)
-    params_init = model.init(rng, jnp.zeros((1, max_len), dtype=jnp.int32), train=False)["params"]
+    params_init = model.init(
+        rng, jnp.zeros((1, max_len), dtype=jnp.int32), train=False
+    )["params"]
     params = load_params(ckpt_path, params_init)
     return model, params
 
 
-def get_codebook_and_decoder_params(vq_params: dict) -> Tuple[Float[Array, "k d"], dict]:
+def get_codebook_and_decoder_params(
+    vq_params: dict,
+) -> Tuple[Float[Array, "k d"], dict]:
     """
     VQVAE params are typically:
       Encoder_0, VectorQuantizer_0(codebook), Decoder_0
@@ -108,25 +117,41 @@ def get_codebook_and_decoder_params(vq_params: dict) -> Tuple[Float[Array, "k d"
         if k.lower().startswith("decoder") and isinstance(v, dict):
             dec_params = v
     if codebook is None or dec_params is None:
-        raise KeyError("Could not locate codebook/decoder params inside VQ params dict.")
+        raise KeyError(
+            "Could not locate codebook/decoder params inside VQ params dict."
+        )
     return codebook, dec_params
 
 
-def make_vq_encode_tokens(vq_model: VQVAE) -> Callable[[dict, Float[Array, "b t h w c"]], Int[Array, "b t h2 w2"]]:
+def make_vq_encode_tokens(
+    vq_model: VQVAE,
+) -> Callable[[dict, Float[Array, "b t h w c"]], Int[Array, "b t h2 w2"]]:
     @jax.jit
-    def _encode(vq_params: dict, x: Float[Array, "b t h w c"]) -> Int[Array, "b t h2 w2"]:
+    def _encode(
+        vq_params: dict, x: Float[Array, "b t h w c"]
+    ) -> Int[Array, "b t h2 w2"]:
         b, t, h, w, c = x.shape
         x_flat = x.reshape((b * t, h, w, c))
         _x_rec, tok_flat, _commit, _cb = vq_model.apply({"params": vq_params}, x_flat)
-        return tok_flat.astype(jnp.int32).reshape(b, t, tok_flat.shape[1], tok_flat.shape[2])
+        return tok_flat.astype(jnp.int32).reshape(
+            b, t, tok_flat.shape[1], tok_flat.shape[2]
+        )
+
     return _encode
 
 
-def make_st_encode_tokens(vq_model: TokenizerSTVQVAE) -> Callable[[dict, Float[Array, "b t h w c"]], Int[Array, "b t h2 w2"]]:
+def make_st_encode_tokens(
+    vq_model: TokenizerSTVQVAE,
+) -> Callable[[dict, Float[Array, "b t h w c"]], Int[Array, "b t h2 w2"]]:
     @jax.jit
-    def _encode(vq_params: dict, x: Float[Array, "b t h w c"]) -> Int[Array, "b t h2 w2"]:
-        tok = vq_model.apply({"params": vq_params}, x, method=TokenizerSTVQVAE.encode_video)
+    def _encode(
+        vq_params: dict, x: Float[Array, "b t h w c"]
+    ) -> Int[Array, "b t h2 w2"]:
+        tok = vq_model.apply(
+            {"params": vq_params}, x, method=TokenizerSTVQVAE.encode_video
+        )
         return tok.astype(jnp.int32)
+
     return _encode
 
 
@@ -149,7 +174,9 @@ def st_decode_tokens(
     tok: Int[Array, "b h w"],
     video_hw: Tuple[int, int],
 ) -> Float[Array, "b h w c"]:
-    out = vq_model.apply({"params": vq_params}, tok, video_hw, method=TokenizerSTVQVAE.decode_tokens)
+    out = vq_model.apply(
+        {"params": vq_params}, tok, video_hw, method=TokenizerSTVQVAE.decode_tokens
+    )
     if out.ndim == 5:
         return out[:, 0]
     return out

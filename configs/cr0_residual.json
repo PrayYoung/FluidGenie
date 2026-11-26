@@ -1,0 +1,14 @@
+{
+  "family": "continuous_residual_cr0",
+  "data": "data/raw/ns2d_verified",
+  "stats": "data/stats/ns2d_verified_stats.npz",
+  "context": 2,
+  "steps": 3000,
+  "batch": 32,
+  "lr": 0.0003,
+  "seed": 0,
+  "hidden_dims": [64, 128, 256],
+  "num_res_blocks": 2,
+  "unroll_steps": 1,
+  "excluded": ["periodic_convolution", "gradient_loss", "divergence_loss", "vorticity_loss", "background_sparsity", "fourier_spatial_positional_encoding"]
+}

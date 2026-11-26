@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Tuple
 
 import jax
+from fluidgenie.training.initialization import initialization_rngs
 import jax.numpy as jnp
 import optax
 from flax.training import train_state
@@ -49,6 +50,7 @@ from fluidgenie.models.base_dynamics import TransformerDynamics, DynConfig
 # -------------------------
 # Data loader
 # -------------------------
+
 
 def flatten_token_sequence(tok_ctx: Int[Array, "b t h w"]) -> Int[Array, "b l"]:
     """
@@ -72,6 +74,7 @@ def encode_tokens_seq(
 # -------------------------
 # Model / training state
 # -------------------------
+
 
 class TrainState(train_state.TrainState):
     pass
@@ -112,7 +115,9 @@ def make_train_step(
             # sample masking ratio
             t = jax.random.uniform(mask_key, shape=())
             if mask_schedule == "cosine":
-                ratio = mask_ratio_min + (mask_ratio_max - mask_ratio_min) * 0.5 * (1.0 + jnp.cos(jnp.pi * t))
+                ratio = mask_ratio_min + (mask_ratio_max - mask_ratio_min) * 0.5 * (
+                    1.0 + jnp.cos(jnp.pi * t)
+                )
             else:
                 ratio = mask_ratio_min + (mask_ratio_max - mask_ratio_min) * t
             ratio = jnp.clip(ratio, 0.0, 1.0)
@@ -122,7 +127,10 @@ def make_train_step(
             mask = scores < ratio
             # ensure at least one masked token per sample
             mask_any = jnp.any(mask, axis=1, keepdims=True)
-            default_mask = jnp.concatenate([jnp.ones((B, 1), dtype=bool), jnp.zeros((B, L_out - 1), dtype=bool)], axis=1)
+            default_mask = jnp.concatenate(
+                [jnp.ones((B, 1), dtype=bool), jnp.zeros((B, L_out - 1), dtype=bool)],
+                axis=1,
+            )
             mask = jnp.where(mask_any, mask, default_mask)
 
             tok_tgt_masked = jnp.where(mask, mask_token_id, tok_tgt)
@@ -149,11 +157,10 @@ def make_train_step(
     return _train_step
 
 
-
-
 # -------------------------
 # Main
 # -------------------------
+
 
 def main():
     args = tyro.cli(DynamicsConfig)
@@ -181,7 +188,9 @@ def main():
     x_tgt0 = jnp.array(x_tgt0)
 
     # Load tokenizer params
-    vq_cfg = VQConfig(codebook_size=args.codebook, embed_dim=args.embed, hidden=args.hidden)
+    vq_cfg = VQConfig(
+        codebook_size=args.codebook, embed_dim=args.embed, hidden=args.hidden
+    )
     base_tokenizer_model = VQVAE(vq_cfg, in_channels=C)
     base_tokenizer_init = base_tokenizer_model.init(
         rng, jnp.zeros((1, H, W, C), dtype=jnp.float32)
@@ -190,7 +199,9 @@ def main():
 
     # JIT encoder with model closed over (avoid passing Python objects into JIT)
     def _vq_encode_to_tokens(base_params, x: jnp.ndarray) -> jnp.ndarray:
-        _x_rec, tok, _commit, _cb = base_tokenizer_model.apply({"params": base_params}, x)
+        _x_rec, tok, _commit, _cb = base_tokenizer_model.apply(
+            {"params": base_params}, x
+        )
         return tok.astype(jnp.int32)
 
     vq_encode_to_tokens = jax.jit(_vq_encode_to_tokens)
@@ -218,7 +229,9 @@ def main():
     )
     base_dynamics_model = TransformerDynamics(dyn_cfg)
     seq0 = jnp.zeros((1, max_len), dtype=jnp.int32)
-    base_dynamics_params = base_dynamics_model.init(rng, seq0, train=True)["params"]
+    base_dynamics_params = base_dynamics_model.init(
+        initialization_rngs(rng), seq0, train=True
+    )["params"]
 
     state = TrainState.create(
         apply_fn=base_dynamics_model.apply,
@@ -228,7 +241,9 @@ def main():
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    logger = TrainingLogger(out, run_name="dynamics", log_every=args.log_every, use_tb=bool(args.tb))
+    logger = TrainingLogger(
+        out, run_name="dynamics", log_every=args.log_every, use_tb=bool(args.tb)
+    )
     dropout_rng = jax.random.PRNGKey(args.seed + 1)
     mask_rng = jax.random.PRNGKey(args.seed + 2)
 
@@ -250,8 +265,8 @@ def main():
         tok_ctx = encode_tokens_seq(vq_encode_to_tokens, base_tokenizer_params, x_ctx)
         tok_tgt = encode_tokens_seq(vq_encode_to_tokens, base_tokenizer_params, x_tgt)
 
-        tok_in = flatten_token_sequence(tok_ctx)     # [B, L_in]
-        tok_out = flatten_token_sequence(tok_tgt)    # [B, L_out]
+        tok_in = flatten_token_sequence(tok_ctx)  # [B, L_in]
+        tok_out = flatten_token_sequence(tok_tgt)  # [B, L_out]
 
         dropout_rng, step_key = jax.random.split(dropout_rng)
         mask_rng, mask_key = jax.random.split(mask_rng)
