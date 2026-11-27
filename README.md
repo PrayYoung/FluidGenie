@@ -137,6 +137,7 @@ Open the printed localhost URL. Use WASD or arrow keys to steer, Space for no-op
 
 **Reports and evidence**
 
+- [Retired experiment registry and parameter scans](research/legacy/README.md)
 - [Training and latent-action discovery](research/lam_v6_results.md)
 - [Five-seed steering report](research/steering_evaluation_results.md)
 - [Earlier negative-result diagnosis](research/lam_v5_diagnosis.md)

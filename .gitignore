@@ -28,3 +28,6 @@ dist/
 .ipynb_checkpoints/
 .env.*
 !.env.example
+
+# Exact legacy source/config recovery archive (may contain local paths)
+/research/legacy/private/

@@ -1,0 +1,129 @@
+{
+  "status": "COMPLETED",
+  "completed_at": "2026-11-27T21:45:27.354226+00:00",
+  "scope": "User-reviewed FluidGenie global Vast upload snapshots and historical downloaded outputs",
+  "removed_files": 3122,
+  "removed_bytes": 21208771908,
+  "removed_GiB": 19.752,
+  "retired_run_directories": 44,
+  "by_kind_bytes": {
+    "upload_snapshot": 16041991979,
+    "retired_downloaded_output": 5166779929
+  },
+  "approved_preparatory_snapshots_retired": 1,
+  "pruning_manifest_sha256": "992127963904a34c60f6f540799233b9f26b5b844c31c1bf9dd4c79e7f8434da",
+  "reviewed_preservation_certificate_sha256": "305015e5dc6e60cd7aed11b7678629b705b339f1651c26b985e8b931e35bffcc",
+  "protected_file_hashes_verified": 1928,
+  "original_preservation_files_verified": 642,
+  "models_restored_on_cpu": 12,
+  "resume_states_restored_on_cpu": 11,
+  "retained_checkpoint_validation": [
+    {
+      "model": "outputs/repair_v4/cr_seed0",
+      "latest_restored_on_cpu": true,
+      "parameters_finite": true,
+      "resume_restored_on_cpu": true,
+      "training_step": 3000,
+      "latest_matches_resume": true
+    },
+    {
+      "model": "outputs/repair_v4/cr_seed1",
+      "latest_restored_on_cpu": true,
+      "parameters_finite": true,
+      "resume_restored_on_cpu": true,
+      "training_step": 3000,
+      "latest_matches_resume": true
+    },
+    {
+      "model": "outputs/repair_v4/cr_seed2",
+      "latest_restored_on_cpu": true,
+      "parameters_finite": true,
+      "resume_restored_on_cpu": true,
+      "training_step": 3000,
+      "latest_matches_resume": true
+    },
+    {
+      "model": "outputs/repair_v4/p2_seed0",
+      "latest_restored_on_cpu": true,
+      "parameters_finite": true,
+      "resume_restored_on_cpu": true,
+      "training_step": 3000,
+      "latest_matches_resume": true
+    },
+    {
+      "model": "outputs/repair_v4/p2_seed1",
+      "latest_restored_on_cpu": true,
+      "parameters_finite": true,
+      "resume_restored_on_cpu": true,
+      "training_step": 3000,
+      "latest_matches_resume": true
+    },
+    {
+      "model": "outputs/repair_v4/p2_seed2",
+      "latest_restored_on_cpu": true,
+      "parameters_finite": true,
+      "resume_restored_on_cpu": true,
+      "training_step": 3000,
+      "latest_matches_resume": true
+    },
+    {
+      "model": "outputs/repair_v4/fm_seed0",
+      "latest_restored_on_cpu": true,
+      "parameters_finite": true,
+      "resume_restored_on_cpu": true,
+      "training_step": 15000,
+      "latest_matches_resume": true
+    },
+    {
+      "model": "outputs/repair_v4/fm_seed1",
+      "latest_restored_on_cpu": true,
+      "parameters_finite": true,
+      "resume_restored_on_cpu": true,
+      "training_step": 15000,
+      "latest_matches_resume": true
+    },
+    {
+      "model": "outputs/repair_v4/fm_seed2",
+      "latest_restored_on_cpu": true,
+      "parameters_finite": true,
+      "resume_restored_on_cpu": true,
+      "training_step": 15000,
+      "latest_matches_resume": true
+    },
+    {
+      "model": "outputs/repair_v4/lam",
+      "latest_restored_on_cpu": true,
+      "parameters_finite": true,
+      "resume_state_available": false,
+      "note": "Historical parameter-only model; no optimizer state existed before this cleanup."
+    },
+    {
+      "model": "outputs/lam_v6/lam",
+      "latest_restored_on_cpu": true,
+      "parameters_finite": true,
+      "resume_restored_on_cpu": true,
+      "training_step": 8000,
+      "latest_matches_resume": true
+    },
+    {
+      "model": "outputs/lam_v6/action_fm",
+      "latest_restored_on_cpu": true,
+      "parameters_finite": true,
+      "resume_restored_on_cpu": true,
+      "training_step": 15000,
+      "latest_matches_resume": true
+    }
+  ],
+  "current_data_and_final_models_unchanged": true,
+  "all_git_recovery_refs_preserved": true,
+  "other_projects_untouched": true,
+  "cloud_instances_started_or_stopped": false,
+  "observed_free_space_increase_bytes": 21103722496,
+  "free_space_after_bytes": 50992246784,
+  "private_audit_files": [
+    "private/pruning_manifest.json.gz",
+    "private/pruning_execution.jsonl.gz",
+    "private/reviewed_verification_before_prune.json",
+    "private/current_models_after_prune.json"
+  ]
+}
