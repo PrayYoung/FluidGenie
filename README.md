@@ -6,20 +6,24 @@
 [![CPU CI](https://github.com/PrayYoung/FluidGenie/actions/workflows/cpu.yml/badge.svg)](https://github.com/PrayYoung/FluidGenie/actions/workflows/cpu.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-FluidGenie is a Genie-inspired neural world model for simulated 2D fluid motion, built with JAX and Flax. It explores how to forecast moving fluids over many future frames. It also learns hidden controls from unlabeled videos, then lets you steer the learned fluid with WASD keys.
+FluidGenie is a Genie-inspired neural world model for simulated 2D fluid motion, built with JAX and Flax. It explores two questions:
+
+1. **Forecasting:** Given two initial frames, can a neural model predict how turbulent fluid will evolve over 40–118 future frames?
+2. **Unsupervised control:** Can a model discover hidden controls from unlabeled videos alone, and then let you steer the fluid live with WASD keys?
 
 ## 1. Forecasting turbulent fluid motion
 
-Given two frames, can a neural model predict how the flow will evolve? We compare three approaches:
+Given two frames, we compare three neural approaches against the ground-truth PhiFlow simulator:
 
-- **Residual U-Net (CR):** predicts the change from the current fluid state to the next.
-- **Physics-regularized residual (P2):** adds a spatial-gradient loss to the residual model, encouraging the prediction to preserve local flow structure.
-- **Flow matching (FM):** learns a continuous transformation from noise to the next fluid state, sampled with a 16-step Heun numerical solver.
+- **Residual U-Net (`CR`):** predicts the change from the current fluid state to the next.
+- **Physics-regularized residual (`P2`, labeled `P2 (Sobolev)` in the GIF):** adds a spatial-gradient loss to `CR`, encouraging predictions to preserve local flow structure.
+- **Flow matching (`FM`, labeled `FM (Heun-16)` in the GIF):** learns a continuous transformation from noise to the next fluid state, sampled with a 16-step Heun numerical solver.
 
 ![Simulator and three learned fluid forecasts](assets/turbulence_rollout.gif)
-*Watch the same vortices evolve in the simulator on the left and in three learned forecasts on the right. Colors show clockwise and counterclockwise rotation.*
+*Same unseen episode simulated by PhiFlow (left) and forecast by the three learned models (right). Red and blue show clockwise and counterclockwise fluid rotation (vorticity).*
 
-![Forecast benchmark overview](research/results/repair_v4/completed_campaign/benchmark_overview.png)
+![Forecast benchmark overview](assets/forecast_benchmark.png)
+*Evaluation across 3 training seeds on 10 unseen episodes. **Flow matching (FM)** is most accurate at 40 frames and best preserves incompressible flow (lowest divergence) across all horizons. **Physics-regularized (P2)** achieves the lowest state error and best swirl preservation at 80 and 118 frames.*
 
 Three independent training seeds, each evaluated on the same ten unseen episodes. **State error (MSE)** measures numerical prediction error; lower is better. **Swirl correlation** measures agreement in vorticity, the local rotation of the fluid; higher is better. Values are mean ± standard deviation across training-seed means.
 
@@ -39,20 +43,17 @@ FM leads at 40 frames and has the lowest divergence error—our measure of devia
 
 ## 2. Discovering controls without labels and steering fluid live
 
-The control model learns from videos of fluid pushed by a hidden joystick. Its three-step loop is:
+The steering model learns from videos of fluid pushed by a hidden joystick—without seeing any action labels during training. Its three-step loop is:
 
-1. **Encode motion.** A video-only Latent Action Model (LAM) compares frame-to-frame changes and compresses them into eight discrete codes.
-2. **Identify controls.** After learning, training labels map the codes to no-op, up, down, right and left. This frozen mapping reaches **94.44% calibrated purity** on held-out transitions; labels are used for naming and evaluation, not LAM training.
-3. **Steer the forecast.** An action-conditioned flow-matching model takes the selected code and predicts the next fluid frame, enabling a local WASD demo.
-
-![Learned motion codes aligned with joystick actions](research/results/lam_v6/lam_discovery.png)
-*The alignment plot shows which learned motion codes correspond to the five joystick actions.*
+1. **Encode motion.** A video-only Latent Action Model (**LAM**) compares frame-to-frame changes and compresses them into 8 discrete motion codes.
+2. **Identify controls.** After training, held-out labels map those codes to `No-op`, `Up`, `Down`, `Right`, and `Left` for evaluation only, reaching **94.44% calibrated purity**.
+3. **Steer the forecast.** An action-conditioned flow-matching model (**FM + LAM**) takes the selected code and predicts the next fluid frame, enabling a live local WASD demo.
 
 ![Five controls applied to the same fluid context](assets/counterfactual_steering.gif)
-*Start from the same fluid state and try five controls. The top row follows the simulator; the bottom row follows the learned model.*
+*Counterfactual test from the same starting fluid state: each column applies one of the 5 controls. Top row: PhiFlow simulator truth. Bottom row: learned **FM + LAM** model (brighter orange/purple indicates higher smoke density).*
 
 ![Live model driven by four successive controls](assets/square_steering.gif)
-*Right, up, left, then down: a real saved-model rollout, with smoke density and swirling motion shown side by side.*
+*Live **FM + LAM** rollout driven sequentially Right → Up → Left → Down (16 frames per command), showing smoke density (left) and swirling vorticity (right).*
 
 The steering evaluation covers five simulator seeds, all five controls, and 40 predicted frames per control. Steering ± is standard deviation across five episode means.
 
@@ -140,7 +141,7 @@ Open the printed localhost URL. Use WASD or arrow keys to steer, Space for no-op
 - [Five-seed steering report](research/steering_evaluation_results.md)
 - [Earlier negative-result diagnosis](research/lam_v5_diagnosis.md)
 - [Forecast metrics](research/results/repair_v4/completed_campaign/results_summary.json) and [saved forecast comparison](research/results/repair_v4/completed_campaign/recorded_rollout_comparison.png)
-- [Steering metrics](research/results/lam_v6/counterfactual_summary.json), [LAM certificate](research/results/lam_v6/lam_discovery.json), [training outcome and original failure](research/results/lam_v6/outcome.json)
+- [Steering metrics](research/results/lam_v6/counterfactual_summary.json), [LAM certificate](research/results/lam_v6/lam_discovery.json), [LAM code-alignment heatmap](research/results/lam_v6/lam_discovery.png), [training outcome and original failure](research/results/lam_v6/outcome.json)
 - [Frozen steering protocol](research/results/lam_v6/evaluation_protocol.json)
 - [Checkpoint/source hashes](research/results/lam_v6/steering_provenance.json) and [CPU/media validation](research/results/lam_v6/steering_validation.json)
 
