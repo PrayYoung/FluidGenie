@@ -36,8 +36,8 @@
       "sha256": "07dff101f0982a2240c3b6a56478aead87d4866b345b25720a74235428f23d1f"
     },
     "evaluation_settings.csv": {
-      "bytes": 38459,
-      "sha256": "545e6e67230c2fee9a4a46c18f852b1a3c6e8d49028ef4b886b5c4f59ae54b48"
+      "bytes": 38398,
+      "sha256": "deba5912f07fd89e7f04aba243c705b5744e76f00e319392e9798c358e51bacc"
     },
     "experiment_registry.json": {
       "bytes": 285935,
@@ -48,8 +48,8 @@
       "sha256": "78968bf25e307ce66b73c67db9eeb92e3bf4d314d814139ef6457958442c77aa"
     },
     "parameter_scan.csv": {
-      "bytes": 5774,
-      "sha256": "f7c5f40630dee484191f5f1bac02d5d34e8e3d696d369a5c713655d0a84ae3a6"
+      "bytes": 6114,
+      "sha256": "d9578b66c032255bf1e067d477e4c132d55c4fc54845c3192e8f841cb99b8f9b"
     },
     "private/README.txt": {
       "bytes": 649,
@@ -2620,7 +2620,7 @@
       "sha256": "96fd878555b8113f788ee1771c86318b30d22f5a97036937d874438d244121c8"
     }
   },
-  "public_payload_bytes_excluding_this_certificate": 1112362,
+  "public_payload_bytes_excluding_this_certificate": 1112641,
   "private_payload_bytes": 12458502,
   "legacy_cache_pruning_receipt": "pruning_receipt.json",
   "reviewed_predecessor_certificate_sha256": "305015e5dc6e60cd7aed11b7678629b705b339f1651c26b985e8b931e35bffcc"
